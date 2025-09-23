@@ -1,27 +1,61 @@
-Framework Approval Request for Flavor Quest
-Name: Boney Patel  Student ID: 000887195  Course: Software Capstone  Project: Flavor Quest – Restaurant Discovery & Rating Platform
+# **Framework Approval Request for Flavor Quest**
 
-Framework and Technology Stack
-Primary Frameworks
-Frontend: React.js with Vite build tool (fast HMR, optimized builds)
-Backend: Flask (Python) with Gunicorn (for production)
-Database: PostgreSQL with psycopg2 driver (no ORM, direct SQL)
-Supporting Technologies and APIs
-Authentication: argon2-cffi (password hashing), itsdangerous (token signing)
-External Data: Google Places API (Text Search, Details) to fetch restaurant information
-File/Image Upload: Cloudinary API for review images and profile pictures
-Styling: TailwindCSS for responsive design
-Routing & HTTP: React Router for navigation; Axios for API requests
-Security: flask-cors (CORS), Flask-Limiter (rate limiting), bleach (HTML sanitization)
-Testing: pytest (backend), Jest + React Testing Library (frontend), OWASP ZAP for security
-Deployment: Netlify (frontend), Render (backend + PostgreSQL)
+**Name:** Boney Patel  
+**Student ID:** 000887195  
+**Course:** Software Capstone  
+**Project:** Flavor Quest – Restaurant Discovery & Rating Platform
 
-Justification for Framework Selection
-React + Vite: Component-based UI allows fast development of restaurant cards, filters, and review forms. Vite ensures near-instant reloads and optimized production bundles, while React Router enables a smooth SPA experience.
-Flask: Lightweight Python microframework, easy to customize for direct SQL queries as required by project scope (no ORM allowed). Integrates well with session management, CORS, and custom middleware.
-PostgreSQL: Reliable relational database with strong indexing and search capabilities (e.g., pg_trgm for fuzzy search).
-Google Places API: Provides accurate, real-time restaurant data (name, address, location, price level) to seed and refresh local database records.
-Cloudinary: Eliminates complexity of file storage and CDN delivery; handles transformations, resizing, and caching.
-Netlify + Render: Both provide free tiers, GitHub-based CI/CD, environment variable management, and easy rollback options.
+## **Framework and Technology Stack**
 
+### **Primary Frameworks**
+
+- **Frontend:** React.js with Vite build tool (fast HMR, optimized builds)
+- **Backend:** Flask (Python) with Gunicorn (for production)
+- **Database:** PostgreSQL with psycopg2 driver (no ORM, direct SQL)
+
+### **Supporting Technologies and APIs**
+
+- **Authentication:** argon2-cffi (password hashing), itsdangerous (token signing)
+- **External Data:** Google Places API (Text Search, Details) to fetch restaurant information
+- **File/Image Upload:** Cloudinary API for review images and profile pictures
+- **Styling:** TailwindCSS for responsive design
+- **Routing & HTTP:** React Router for navigation; Axios for API requests
+- **Security:** flask-cors (CORS), Flask-Limiter (rate limiting), bleach (HTML sanitization)
+- **Testing:** pytest (backend), Jest + React Testing Library (frontend), OWASP ZAP for security
+- **Deployment:** Netlify (frontend), Render (backend + PostgreSQL)
+
+## **Justification for Framework Selection**
+
+**React + Vite:** Component-based UI allows fast development of restaurant cards, filters, and review forms. Vite ensures near-instant reloads and optimized production bundles, while React Router enables a smooth SPA experience.
+
+**Flask:** Lightweight Python microframework, easy to customize for direct SQL queries as required by project scope (no ORM allowed). Integrates well with session management, CORS, and custom middleware.
+
+**PostgreSQL:** Reliable relational database with strong indexing and search capabilities (e.g., pg_trgm for fuzzy search).
+
+**Google Places API:** Provides accurate, real-time restaurant data (name, address, location, price level) to seed and refresh local database records.
+
+**Cloudinary:** Eliminates complexity of file storage and CDN delivery; handles transformations, resizing, and caching.
+
+**Netlify + Render:** Both provide free tiers, GitHub-based CI/CD, environment variable management, and easy rollback options.
+
+Functionality Implementation Chart
+
+| **Feature** | **Description** | **Framework / API / Tool** | **What I Will Develop** |
+| --- | --- | --- | --- |
+| **User Authentication** | Sign-up, login, password reset, email verification, session management | Flask, argon2-cffi, itsdangerous | Build user table schema, implement signup/login/logout endpoints, handle session cookies, generate verification tokens |
+| **User Profiles** | Update profile, change username, upload profile picture | Flask, PostgreSQL, Cloudinary | Endpoints for profile updates, Cloudinary integration for images, React profile page |
+| **Delete Account** | Users can delete their own account | Flask, PostgreSQL | Endpoint to securely delete user and cascade-delete related data |
+| **Restaurant Database** | Store restaurant details (name, location, cuisine, ratings) | Google Places API, PostgreSQL | Fetch and deduplicate restaurants, store in DB, design schema |
+| **Restaurant Search & Filtering** | Search by name/cuisine/location, filter by rating, price range, open hours | Flask API, PostgreSQL (pg_trgm for text search) | Write SQL queries for filters, pagination, and ordering; build search UI |
+| **User Ratings & Reviews** | Submit, update, delete reviews (1 per user per restaurant) | Flask, PostgreSQL, Cloudinary | CRUD endpoints, rating aggregation, image upload |
+| **Community Discussions** | Join/create groups, post comments, like, reply, report | Flask, PostgreSQL | Create schema for groups/posts/comments, endpoints for CRUD and reporting, React UI |
+| **Usage & History** | Show personal review and favorite history | Flask, PostgreSQL | Build dashboard endpoint, React component to display results |
+| **User Moderation** | Admins can ban/unban users | Flask + middleware | Protected admin endpoints and admin UI |
+| **Review Moderation** | Flag and remove inappropriate reviews | Flask, PostgreSQL | Reports table + endpoints, admin dashboard for moderation |
+| **Tagging System** | Users can tag restaurants with keywords | Flask, PostgreSQL | Schema and endpoints for tags, integrate with search filters |
+| **Image Upload for Reviews** | Upload images with reviews | Cloudinary API | Frontend integration for uploads, store URLs in DB |
+| **Email Notifications** | Notify users about replies or moderation events | Flask + SendGrid/Resend | Email templates + backend job to send |
+| **Frontend UI** | Pages, forms, filters, navigation | React, TailwindCSS, Axios | Build components, wire API calls, add ARIA and keyboard navigation |
+| **Testing** | Unit + integration testing | pytest, Jest, OWASP ZAP | Write backend unit tests, frontend component tests, run security scans |
+| **Deployment** | Host project | Netlify, Render | Configure CI/CD, environment variables, staging and production URLs |
 
