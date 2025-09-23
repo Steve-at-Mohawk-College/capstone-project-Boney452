@@ -1,0 +1,27 @@
+Framework Approval Request for Flavor Quest
+Name: Boney Patel  Student ID: 000887195  Course: Software Capstone  Project: Flavor Quest – Restaurant Discovery & Rating Platform
+
+Framework and Technology Stack
+Primary Frameworks
+Frontend: React.js with Vite build tool (fast HMR, optimized builds)
+Backend: Flask (Python) with Gunicorn (for production)
+Database: PostgreSQL with psycopg2 driver (no ORM, direct SQL)
+Supporting Technologies and APIs
+Authentication: argon2-cffi (password hashing), itsdangerous (token signing)
+External Data: Google Places API (Text Search, Details) to fetch restaurant information
+File/Image Upload: Cloudinary API for review images and profile pictures
+Styling: TailwindCSS for responsive design
+Routing & HTTP: React Router for navigation; Axios for API requests
+Security: flask-cors (CORS), Flask-Limiter (rate limiting), bleach (HTML sanitization)
+Testing: pytest (backend), Jest + React Testing Library (frontend), OWASP ZAP for security
+Deployment: Netlify (frontend), Render (backend + PostgreSQL)
+
+Justification for Framework Selection
+React + Vite: Component-based UI allows fast development of restaurant cards, filters, and review forms. Vite ensures near-instant reloads and optimized production bundles, while React Router enables a smooth SPA experience.
+Flask: Lightweight Python microframework, easy to customize for direct SQL queries as required by project scope (no ORM allowed). Integrates well with session management, CORS, and custom middleware.
+PostgreSQL: Reliable relational database with strong indexing and search capabilities (e.g., pg_trgm for fuzzy search).
+Google Places API: Provides accurate, real-time restaurant data (name, address, location, price level) to seed and refresh local database records.
+Cloudinary: Eliminates complexity of file storage and CDN delivery; handles transformations, resizing, and caching.
+Netlify + Render: Both provide free tiers, GitHub-based CI/CD, environment variable management, and easy rollback options.
+
+
