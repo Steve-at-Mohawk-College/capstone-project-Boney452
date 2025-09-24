@@ -48,19 +48,23 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="w-full max-w-md px-6">
+    <div className="w-full h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+      <div className="w-full max-w-lg">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Create your Account</h1>
-          <p className="text-gray-600">Join Flavor Quest and start your culinary journey</p>
+        <div className="text-center mb-16" style={{marginBottom: '4rem'}}>
+          <h1 className="text-5xl font-bold text-slate-900 mb-6 tracking-tight" style={{fontSize: '3rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '1.5rem'}}>Create your Account</h1>
+          <p className="text-slate-600 text-xl font-medium mb-2" style={{color: '#475569', fontSize: '1.25rem', fontWeight: '500', marginBottom: '0.5rem'}}>Join Flavor Quest and start your culinary journey</p>
+          <p className="text-slate-500 text-base" style={{color: '#64748b', fontSize: '1rem'}}>Discover amazing flavors from around the world</p>
         </div>
 
         {/* Signup Form */}
-        <div className="space-y-10">
-          <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-12 border border-white/30" style={{backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '1.5rem', padding: '3rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'}}>
+          <form onSubmit={handleSubmit} className="space-y-8" style={{display: 'flex', flexDirection: 'column', gap: '2rem'}}>
             {/* Username Field */}
-            <div className="space-y-2">
+            <div className="space-y-4" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+              <label htmlFor="username" className="block text-sm font-bold text-slate-700" style={{fontSize: '0.875rem', fontWeight: 'bold', color: '#334155'}}>
+                Username
+              </label>
               <input
                 id="username"
                 name="username"
@@ -68,13 +72,17 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
                 required
                 value={formData.username}
                 onChange={handleChange}
-                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                placeholder="Username"
+                className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-slate-50/50 focus:bg-white shadow-sm hover:shadow-md"
+                style={{width: '100%', padding: '1rem 1.25rem', border: '2px solid #e2e8f0', borderRadius: '0.75rem', backgroundColor: 'rgba(248, 250, 252, 0.5)'}}
+                placeholder="Enter your username"
               />
             </div>
 
             {/* Email Field */}
-            <div className="space-y-2">
+            <div className="space-y-4" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+              <label htmlFor="email" className="block text-sm font-bold text-slate-700" style={{fontSize: '0.875rem', fontWeight: 'bold', color: '#334155'}}>
+                Email Address
+              </label>
               <input
                 id="email"
                 name="email"
@@ -82,13 +90,17 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                placeholder="Email"
+                className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-slate-50/50 focus:bg-white shadow-sm hover:shadow-md"
+                style={{width: '100%', padding: '1rem 1.25rem', border: '2px solid #e2e8f0', borderRadius: '0.75rem', backgroundColor: 'rgba(248, 250, 252, 0.5)'}}
+                placeholder="Enter your email"
               />
             </div>
 
             {/* Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-4" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+              <label htmlFor="password" className="block text-sm font-bold text-slate-700" style={{fontSize: '0.875rem', fontWeight: 'bold', color: '#334155'}}>
+                Password
+              </label>
               <input
                 id="password"
                 name="password"
@@ -96,13 +108,17 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                placeholder="Password"
+                className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-slate-50/50 focus:bg-white shadow-sm hover:shadow-md"
+                style={{width: '100%', padding: '1rem 1.25rem', border: '2px solid #e2e8f0', borderRadius: '0.75rem', backgroundColor: 'rgba(248, 250, 252, 0.5)'}}
+                placeholder="Enter your password"
               />
             </div>
 
             {/* Confirm Password Field */}
-            <div className="space-y-2">
+            <div className="space-y-4" style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+              <label htmlFor="confirmPassword" className="block text-sm font-bold text-slate-700" style={{fontSize: '0.875rem', fontWeight: 'bold', color: '#334155'}}>
+                Confirm Password
+              </label>
               <input
                 id="confirmPassword"
                 name="confirmPassword"
@@ -110,44 +126,47 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
                 required
                 value={formData.confirmPassword}
                 onChange={handleChange}
-                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
-                placeholder="Confirm Password"
+                className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-300 bg-slate-50/50 focus:bg-white shadow-sm hover:shadow-md"
+                style={{width: '100%', padding: '1rem 1.25rem', border: '2px solid #e2e8f0', borderRadius: '0.75rem', backgroundColor: 'rgba(248, 250, 252, 0.5)'}}
+                placeholder="Confirm your password"
               />
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-sm text-red-800">{error}</p>
+              <div className="bg-red-50/80 border-2 border-red-200 rounded-xl p-4 shadow-sm">
+                <p className="text-sm font-semibold text-red-800">{error}</p>
               </div>
             )}
 
             {/* Success Message */}
             {success && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-sm text-green-800">{success}</p>
+              <div className="bg-green-50/80 border-2 border-green-200 rounded-xl p-4 shadow-sm">
+                <p className="text-sm font-semibold text-green-800">{success}</p>
               </div>
             )}
 
             {/* Submit Button */}
-            <div className="pt-4">
+            <div className="pt-8" style={{paddingTop: '2rem'}}>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-4 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200 font-medium"
+                className="w-full py-5 px-8 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 focus:ring-4 focus:ring-blue-500/30 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-semibold text-lg shadow-xl hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{width: '100%', padding: '1.25rem 2rem', backgroundColor: '#2563eb', color: 'white', borderRadius: '0.75rem', fontSize: '1.125rem', fontWeight: '600', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'}}
               >
-                {isLoading ? "Creating account..." : "Sign up"}
+                {isLoading ? "Creating account..." : "Create Account"}
               </button>
             </div>
           </form>
 
           {/* Navigation */}
-          <div className="mt-10 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-12 text-center" style={{marginTop: '3rem'}}>
+            <p className="text-base text-slate-600" style={{fontSize: '1rem', color: '#475569'}}>
               Already have an account?{" "}
               <button
                 onClick={onSwitchToLogin}
-                className="text-blue-600 hover:text-blue-500 font-medium"
+                className="text-blue-600 hover:text-blue-500 font-semibold transition-all duration-200 hover:underline"
+                style={{color: '#2563eb', fontWeight: '600'}}
               >
                 Sign in here
               </button>

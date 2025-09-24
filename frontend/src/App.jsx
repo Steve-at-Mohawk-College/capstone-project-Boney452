@@ -20,7 +20,7 @@ function App() {
   // If user is already logged in, show a simple dashboard
   if (token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50">
+      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-4 text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-500 to-blue-600 rounded-full mb-4">
             <span className="text-2xl">🎉</span>
@@ -49,31 +49,36 @@ function App() {
   // Landing page with signup/login options
   if (currentView === "landing") {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="w-full max-w-md px-6">
+      <div className="w-full h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+        <div className="w-full max-w-lg">
           {/* App Name */}
-          <div className="text-center mb-10">
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">Flavor Quest</h1>
-            <p className="text-gray-600">Discover Amazing Flavors</p>
+          <div className="text-center mb-16" style={{marginBottom: '4rem'}}>
+            <h1 className="text-5xl font-bold text-slate-900 mb-4 tracking-tight" style={{fontSize: '3rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '1rem'}}>Flavor Quest</h1>
+            <p className="text-slate-600 text-xl font-medium" style={{color: '#475569', fontSize: '1.25rem', fontWeight: '500'}}>Discover Amazing Flavors</p>
+            <p className="text-slate-500 text-base mt-2" style={{color: '#64748b', fontSize: '1rem', marginTop: '0.5rem'}}>Your culinary journey starts here</p>
           </div>
 
           {/* Action Buttons */}
-          <div className="space-y-6">
-            {/* Sign Up Button */}
-            <button
-              onClick={() => setCurrentView("signup")}
-              className="w-full py-3 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 font-medium"
-            >
-              Create New Account
-            </button>
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl p-12 border border-white/30" style={{backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: '1.5rem', padding: '3rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'}}>
+            <div className="space-y-8" style={{display: 'flex', flexDirection: 'column', gap: '2rem'}}>
+              {/* Create New Account Button */}
+              <button
+                onClick={() => setCurrentView("signup")}
+                className="w-full py-5 px-8 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 text-white rounded-xl hover:from-blue-700 hover:via-blue-800 hover:to-indigo-800 focus:ring-4 focus:ring-blue-500/30 focus:ring-offset-2 transition-all duration-300 font-semibold text-lg shadow-xl hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{width: '100%', padding: '1.25rem 2rem', backgroundColor: '#2563eb', color: 'white', borderRadius: '0.75rem', fontSize: '1.125rem', fontWeight: '600', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'}}
+              >
+                Create New Account
+              </button>
 
-            {/* Login Button */}
-            <button
-              onClick={() => setCurrentView("login")}
-              className="w-full py-3 px-4 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 font-medium"
-            >
-              Sign In
-            </button>
+              {/* Sign In Button */}
+              <button
+                onClick={() => setCurrentView("login")}
+                className="w-full py-5 px-8 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white rounded-xl hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 focus:ring-4 focus:ring-emerald-500/30 focus:ring-offset-2 transition-all duration-300 font-semibold text-lg shadow-xl hover:shadow-2xl transform hover:scale-[1.02] active:scale-[0.98]"
+                style={{width: '100%', padding: '1.25rem 2rem', backgroundColor: '#10b981', color: 'white', borderRadius: '0.75rem', fontSize: '1.125rem', fontWeight: '600', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'}}
+              >
+                Sign In
+              </button>
+            </div>
           </div>
         </div>
       </div>
