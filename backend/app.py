@@ -112,6 +112,24 @@ def me():
         return error
     return jsonify({"user": data})
 
+# --- Database Viewer (for development) ---
+@app.route("/users")
+def get_users():
+    try:
+        cur.execute("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC")
+        users = cur.fetchall()
+        user_list = []
+        for user in users:
+            user_list.append({
+                "id": user[0],
+                "username": user[1],
+                "email": user[2],
+                "created_at": user[3].isoformat() if user[3] else None
+            })
+        return jsonify({"users": user_list, "count": len(user_list)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # -----------------------------
 # Run Server
 # -----------------------------
