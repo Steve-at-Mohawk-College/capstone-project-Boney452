@@ -11,14 +11,14 @@ from datetime import datetime
 # -----------------------------
 # Database Connection
 # -----------------------------
-conn = psycopg2.connect(
-    dbname="flavorquest",
-    user="flavoruser",
-    password="securepass",
-    host="localhost",
-    port="5432"
-)
-cur = conn.cursor()
+def get_db_connection():
+    return psycopg2.connect(
+        dbname="flavorquest",
+        user="flavoruser",
+        password="securepass",
+        host="localhost",
+        port="5432"
+    )
 
 # -----------------------------
 # Flask Setup
@@ -72,6 +72,9 @@ def home():
 @app.route("/restaurants")
 def get_restaurants():
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         cur.execute("""
             SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
             FROM restaurants r
@@ -91,6 +94,8 @@ def get_restaurants():
                 "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None
             })
         
+        cur.close()
+        conn.close()
         return jsonify({"restaurants": restaurant_list, "count": len(restaurant_list)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -171,15 +176,23 @@ def signup():
         return jsonify({"error": "Missing fields"}), 400
 
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         hashed = ph.hash(password)
         cur.execute(
             "INSERT INTO users (username, email, password_hash, created_at) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)",
             (username, email, hashed)
         )
         conn.commit()
+        
+        cur.close()
+        conn.close()
         return jsonify({"message": "User registered successfully!"}), 201
     except Exception as e:
-        conn.rollback()
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
         return jsonify({"error": str(e)}), 400
 
 # --- Login ---
@@ -189,18 +202,31 @@ def login():
     email = data.get("email")
     password = data.get("password")
 
-    cur.execute("SELECT id, username, password_hash FROM users WHERE email = %s", (email,))
-    user = cur.fetchone()
-
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("SELECT id, username, password_hash FROM users WHERE email = %s", (email,))
+        user = cur.fetchone()
+
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User not found"}), 404
+
         ph.verify(user[2], password)
         token = serializer.dumps({"id": user[0], "username": user[1]})
+        
+        cur.close()
+        conn.close()
         return jsonify({"message": "Login successful", "token": token, "user": {"UserId": user[0], "UserName": user[1], "UserEmail": email}}), 200
-    except Exception:
-        return jsonify({"error": "Invalid password"}), 401
+    except Exception as e:
+        if 'conn' in locals():
+            cur.close()
+            conn.close()
+        if "Invalid password" in str(e) or "verify" in str(e):
+            return jsonify({"error": "Invalid password"}), 401
+        return jsonify({"error": str(e)}), 401
 
 # --- Auth: current user ---
 def _require_auth(req):
@@ -637,6 +663,9 @@ def batch_add_restaurants():
 @app.route("/users")
 def get_users():
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         cur.execute("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC")
         users = cur.fetchall()
         user_list = []
@@ -647,6 +676,9 @@ def get_users():
                 "UserEmail": user[2],
                 "CreatedAt": user[3].isoformat() if user[3] else None
             })
+        
+        cur.close()
+        conn.close()
         return jsonify({"users": user_list, "count": len(user_list)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
