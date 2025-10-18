@@ -103,7 +103,7 @@ function App() {
   // Enhanced Landing page with signup/login options
   if (currentView === "landing") {
     return (
-      <div className="w-full h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+      <div className="w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 px-4 auth-page">
         <div className="w-full max-w-lg">
           {/* Enhanced App Name Section */}
           <div className="text-center mb-16" style={{marginBottom: '4rem'}}>

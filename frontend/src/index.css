@@ -17,8 +17,20 @@ html, body {
 
 #root {
   width: 100%;
+  min-height: 100vh;
+}
+
+/* Specific styling for auth pages (login/signup) */
+.auth-page {
   height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Specific styling for dashboard pages (restaurant search) */
+.dashboard-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }

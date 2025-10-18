@@ -31,7 +31,7 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
   };
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 flex items-center justify-center px-4">
+    <div className="w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 px-4 auth-page">
       <div className="w-full max-w-lg">
         {/* Header */}
         <div className="text-center mb-16" style={{marginBottom: '4rem'}}>

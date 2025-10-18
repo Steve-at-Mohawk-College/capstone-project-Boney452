@@ -13,12 +13,12 @@ from datetime import datetime
 # -----------------------------
 def get_db_connection():
     return psycopg2.connect(
-        dbname="flavorquest",
-        user="flavoruser",
-        password="securepass",
-        host="localhost",
-        port="5432"
-    )
+    dbname="flavorquest",
+    user="flavoruser",
+    password="securepass",
+    host="localhost",
+    port="5432"
+)
 
 # -----------------------------
 # Flask Setup
@@ -103,6 +103,9 @@ def get_restaurants():
 @app.route("/restaurants/<int:restaurant_id>")
 def get_restaurant(restaurant_id):
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         # Get restaurant details
         cur.execute("""
             SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
@@ -110,6 +113,9 @@ def get_restaurant(restaurant_id):
             WHERE r.id = %s AND r.is_active = TRUE
         """, (restaurant_id,))
         restaurant = cur.fetchone()
+        
+        cur.close()
+        conn.close()
         
         if not restaurant:
             return jsonify({"error": "Restaurant not found"}), 404
@@ -205,7 +211,7 @@ def login():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute("SELECT id, username, password_hash FROM users WHERE email = %s", (email,))
         user = cur.fetchone()
 
@@ -249,21 +255,30 @@ def me():
     if error is not None:
         return error
     
-    # Get full user details
-    cur.execute("SELECT id, username, email, created_at FROM users WHERE id = %s", (data["id"],))
-    user = cur.fetchone()
-    
-    if user:
-        return jsonify({
-            "user": {
-                "UserId": user[0],
-                "UserName": user[1], 
-                "UserEmail": user[2],
-                "CreatedAt": user[3].isoformat() if user[3] else None
-            }
-        })
-    else:
-        return jsonify({"error": "User not found"}), 404
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get full user details
+        cur.execute("SELECT id, username, email, created_at FROM users WHERE id = %s", (data["id"],))
+        user = cur.fetchone()
+        
+        cur.close()
+        conn.close()
+        
+        if user:
+            return jsonify({
+                "user": {
+                    "UserId": user[0],
+                    "UserName": user[1], 
+                    "UserEmail": user[2],
+                    "CreatedAt": user[3].isoformat() if user[3] else None
+                }
+            })
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # --- Search ---
@@ -322,12 +337,23 @@ def search_google_places():
         return jsonify({"error": quota_error}), 429
     
     data = request.json
-    query = data.get("query", "")
-    location = data.get("location", "")
+    query = data.get("query", "").strip()
+    location = data.get("location", "").strip()
     radius = data.get("radius", 5000)  # Default 5km radius
     
     if not query:
         return jsonify({"error": "Query is required"}), 400
+    
+    # Basic validation - only check for very obvious issues
+    import re
+    
+    # Only reject completely empty or very short queries
+    if len(query.strip()) < 2:
+        return jsonify({"error": "Please enter at least 2 characters"}), 400
+    
+    # Only reject if it's purely numbers or special characters (no letters at all)
+    if not re.search(r'[a-zA-Z]', query):
+        return jsonify({"error": "Please enter a location name with letters"}), 400
     
     try:
         # Search for places using Google Places API
@@ -359,23 +385,107 @@ def search_google_places():
         
         places = places_data.get("results", [])
         
-        # Format the results
+        # If no places found, return error
+        if not places:
+            return jsonify({"error": f"No restaurants found for '{query}'. Please try a different location."}), 404
+        
+        # Format the results and automatically save to database
         formatted_places = []
-        for place in places:
-            formatted_places.append({
-                "place_id": place.get("place_id"),
-                "name": place.get("name"),
-                "formatted_address": place.get("formatted_address"),
-                "rating": place.get("rating"),
-                "price_level": place.get("price_level"),
-                "types": place.get("types", []),
-                "geometry": place.get("geometry"),
-                "photos": place.get("photos", [])
-            })
+        saved_count = 0
+        
+        # Get database connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        try:
+            for place in places:
+                # Format the place data
+                formatted_place = {
+                    "place_id": place.get("place_id"),
+                    "name": place.get("name"),
+                    "formatted_address": place.get("formatted_address"),
+                    "rating": place.get("rating"),
+                    "price_level": place.get("price_level"),
+                    "types": place.get("types", []),
+                    "geometry": place.get("geometry"),
+                    "photos": place.get("photos", [])
+                }
+                formatted_places.append(formatted_place)
+                
+                # Try to save to database
+                try:
+                    # Extract restaurant information
+                    name = place.get("name", "")
+                    address = place.get("formatted_address", "")
+                    types = place.get("types", [])
+                    
+                    # Determine cuisine type from Google types
+                    cuisine_type = "Other"
+                    for place_type in types:
+                        if place_type in ["restaurant", "food", "meal_takeaway", "meal_delivery"]:
+                            if "italian" in place_type or "pizza" in place_type:
+                                cuisine_type = "Italian"
+                            elif "chinese" in place_type or "asian" in place_type:
+                                cuisine_type = "Chinese"
+                            elif "mexican" in place_type:
+                                cuisine_type = "Mexican"
+                            elif "indian" in place_type:
+                                cuisine_type = "Indian"
+                            elif "japanese" in place_type or "sushi" in place_type:
+                                cuisine_type = "Japanese"
+                            elif "american" in place_type:
+                                cuisine_type = "American"
+                            elif "thai" in place_type:
+                                cuisine_type = "Thai"
+                            elif "french" in place_type:
+                                cuisine_type = "French"
+                            elif "korean" in place_type:
+                                cuisine_type = "Korean"
+                            elif "mediterranean" in place_type:
+                                cuisine_type = "Mediterranean"
+                            break
+                    
+                    # Create Google Maps link
+                    geometry = place.get("geometry", {})
+                    location = geometry.get("location", {})
+                    lat = location.get("lat")
+                    lng = location.get("lng")
+                    
+                    google_maps_link = ""
+                    if lat and lng:
+                        google_maps_link = f"https://www.google.com/maps/place/?q=place_id:{place.get('place_id')}"
+                    
+                    # Check if restaurant already exists
+                    cur.execute("SELECT id FROM restaurants WHERE name = %s AND location = %s", (name, address))
+                    existing = cur.fetchone()
+                    
+                    if not existing:
+                        # Insert into database
+                        cur.execute("""
+                            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
+                            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+                            RETURNING id
+                        """, (name, cuisine_type, address, google_maps_link))
+                        
+                        restaurant_id = cur.fetchone()[0]
+                        saved_count += 1
+                        
+                except Exception as e:
+                    # If saving fails, continue with other restaurants
+                    print(f"Failed to save restaurant {name}: {str(e)}")
+                    continue
+            
+            # Commit all database changes
+            conn.commit()
+            
+        finally:
+            cur.close()
+            conn.close()
         
         return jsonify({
             "places": formatted_places,
             "count": len(formatted_places),
+            "saved_to_database": saved_count,
             "status": places_data.get("status"),
             "api_usage": {
                 "total_requests": usage["total_requests"],
@@ -543,121 +653,138 @@ def batch_add_restaurants():
     if not quota_ok:
         return jsonify({"error": quota_error}), 429
     
+    # Load current usage
+    usage = load_api_usage()
+    
     if usage["total_requests"] + len(place_ids) > MAX_REQUESTS:
         return jsonify({"error": f"Not enough quota. Need {len(place_ids)} requests, have {MAX_REQUESTS - usage['total_requests']} remaining"}), 429
     
     results = []
     errors = []
     
-    for place_id in place_ids:
-        try:
-            # Get detailed information about the place
-            details_url = f"{GOOGLE_PLACES_API_URL}/details/json"
-            params = {
-                "place_id": place_id,
-                "key": GOOGLE_MAPS_API_KEY,
-                "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number"
+    # Get database connection
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        for place_id in place_ids:
+            try:
+                # Get detailed information about the place
+                details_url = f"{GOOGLE_PLACES_API_URL}/details/json"
+                params = {
+                    "place_id": place_id,
+                    "key": GOOGLE_MAPS_API_KEY,
+                    "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number"
+                }
+                
+                response = requests.get(details_url, params=params)
+                response.raise_for_status()
+                
+                # Track API usage
+                usage = load_api_usage()
+                usage["total_requests"] += 1
+                usage["daily_requests"] += 1
+                usage["last_request"] = datetime.now().isoformat()
+                save_api_usage(usage)
+                
+                place_data = response.json()
+                
+                if place_data.get("status") != "OK":
+                    errors.append(f"Place {place_id}: {place_data.get('status')}")
+                    continue
+                
+                result = place_data.get("result", {})
+                
+                # Extract restaurant information
+                name = result.get("name", "")
+                address = result.get("formatted_address", "")
+                types = result.get("types", [])
+                
+                # Determine cuisine type from Google types
+                cuisine_type = "Other"
+                for place_type in types:
+                    if place_type in ["restaurant", "food", "meal_takeaway", "meal_delivery"]:
+                        if "italian" in place_type or "pizza" in place_type:
+                            cuisine_type = "Italian"
+                        elif "chinese" in place_type or "asian" in place_type:
+                            cuisine_type = "Chinese"
+                        elif "mexican" in place_type:
+                            cuisine_type = "Mexican"
+                        elif "indian" in place_type:
+                            cuisine_type = "Indian"
+                        elif "japanese" in place_type or "sushi" in place_type:
+                            cuisine_type = "Japanese"
+                        elif "american" in place_type:
+                            cuisine_type = "American"
+                        elif "thai" in place_type:
+                            cuisine_type = "Thai"
+                        elif "french" in place_type:
+                            cuisine_type = "French"
+                        elif "korean" in place_type:
+                            cuisine_type = "Korean"
+                        elif "mediterranean" in place_type:
+                            cuisine_type = "Mediterranean"
+                        break
+                
+                # Create Google Maps link
+                geometry = result.get("geometry", {})
+                location = geometry.get("location", {})
+                lat = location.get("lat")
+                lng = location.get("lng")
+                
+                google_maps_link = ""
+                if lat and lng:
+                    google_maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+                
+                # Check if restaurant already exists
+                cur.execute("SELECT id FROM restaurants WHERE name = %s AND location = %s", (name, address))
+                existing = cur.fetchone()
+                
+                if existing:
+                    errors.append(f"Restaurant '{name}' already exists")
+                    continue
+                
+                # Insert into database
+                cur.execute("""
+                    INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
+                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+                    RETURNING id
+                """, (name, cuisine_type, address, google_maps_link))
+                
+                restaurant_id = cur.fetchone()[0]
+                results.append({
+                    "ResturantsId": restaurant_id,
+                    "Name": name,
+                    "Cuisine Type": cuisine_type,
+                    "Location": address,
+                    "GoogleApiLinks": google_maps_link
+                })
+                
+            except Exception as e:
+                errors.append(f"Place {place_id}: {str(e)}")
+                continue
+    
+        conn.commit()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Batch processing completed. {len(results)} restaurants added, {len(errors)} errors.",
+            "added_count": len(results),
+            "restaurants": results,
+            "errors": errors,
+            "api_usage": {
+                "total_requests": usage["total_requests"],
+                "remaining_requests": MAX_REQUESTS - usage["total_requests"],
+                "daily_requests": usage["daily_requests"]
             }
-            
-            response = requests.get(details_url, params=params)
-            response.raise_for_status()
-            
-            # Track API usage
-            usage = load_api_usage()
-            usage["total_requests"] += 1
-            usage["daily_requests"] += 1
-            usage["last_request"] = datetime.now().isoformat()
-            save_api_usage(usage)
-            
-            place_data = response.json()
-            
-            if place_data.get("status") != "OK":
-                errors.append(f"Place {place_id}: {place_data.get('status')}")
-                continue
-            
-            result = place_data.get("result", {})
-            
-            # Extract restaurant information
-            name = result.get("name", "")
-            address = result.get("formatted_address", "")
-            types = result.get("types", [])
-            
-            # Determine cuisine type from Google types
-            cuisine_type = "Other"
-            for place_type in types:
-                if place_type in ["restaurant", "food", "meal_takeaway", "meal_delivery"]:
-                    if "italian" in place_type or "pizza" in place_type:
-                        cuisine_type = "Italian"
-                    elif "chinese" in place_type or "asian" in place_type:
-                        cuisine_type = "Chinese"
-                    elif "mexican" in place_type:
-                        cuisine_type = "Mexican"
-                    elif "indian" in place_type:
-                        cuisine_type = "Indian"
-                    elif "japanese" in place_type or "sushi" in place_type:
-                        cuisine_type = "Japanese"
-                    elif "american" in place_type:
-                        cuisine_type = "American"
-                    elif "thai" in place_type:
-                        cuisine_type = "Thai"
-                    elif "french" in place_type:
-                        cuisine_type = "French"
-                    elif "korean" in place_type:
-                        cuisine_type = "Korean"
-                    elif "mediterranean" in place_type:
-                        cuisine_type = "Mediterranean"
-                    break
-            
-            # Create Google Maps link
-            geometry = result.get("geometry", {})
-            location = geometry.get("location", {})
-            lat = location.get("lat")
-            lng = location.get("lng")
-            
-            google_maps_link = ""
-            if lat and lng:
-                google_maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
-            
-            # Check if restaurant already exists
-            cur.execute("SELECT id FROM restaurants WHERE name = %s AND location = %s", (name, address))
-            existing = cur.fetchone()
-            
-            if existing:
-                errors.append(f"Restaurant '{name}' already exists")
-                continue
-            
-            # Insert into database
-            cur.execute("""
-                INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
-                VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
-                RETURNING id
-            """, (name, cuisine_type, address, google_maps_link))
-            
-            restaurant_id = cur.fetchone()[0]
-            results.append({
-                "ResturantsId": restaurant_id,
-                "Name": name,
-                "Cuisine Type": cuisine_type,
-                "Location": address,
-                "GoogleApiLinks": google_maps_link
-            })
-            
-        except Exception as e:
-            errors.append(f"Place {place_id}: {str(e)}")
-            continue
-    
-    conn.commit()
-    
-    return jsonify({
-        "message": f"Batch processing completed. {len(results)} restaurants added, {len(errors)} errors.",
-        "restaurants": results,
-        "errors": errors,
-        "api_usage": {
-            "total_requests": usage["total_requests"],
-            "remaining_requests": MAX_REQUESTS - usage["total_requests"],
-            "daily_requests": usage["daily_requests"]
-        }
-    }), 201
+        }), 201
+        
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
 
 # --- Database Viewer (for development) ---
 @app.route("/users")
