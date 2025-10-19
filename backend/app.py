@@ -20,6 +20,22 @@ def get_db_connection():
     port="5432"
 )
 
+def get_photo_url(photo_reference, max_width=400):
+    """Generate a photo URL from Google Places photo reference"""
+    if not photo_reference:
+        return None
+    
+    base_url = "https://maps.googleapis.com/maps/api/place/photo"
+    params = {
+        "maxwidth": max_width,
+        "photoreference": photo_reference,
+        "key": GOOGLE_MAPS_API_KEY
+    }
+    
+    # Build URL with parameters
+    param_string = "&".join([f"{k}={v}" for k, v in params.items()])
+    return f"{base_url}?{param_string}"
+
 # -----------------------------
 # Flask Setup
 # -----------------------------
@@ -76,22 +92,38 @@ def get_restaurants():
         cur = conn.cursor()
         
         cur.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at,
+                   COALESCE(AVG(rr.rating), 0) as avg_rating,
+                   COUNT(rr.id) as total_ratings
             FROM restaurants r
+            LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
             WHERE r.is_active = TRUE
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
             ORDER BY r.created_at DESC
         """)
         restaurants = cur.fetchall()
         
         restaurant_list = []
         for restaurant in restaurants:
+            avg_rating = float(restaurant[6]) if restaurant[6] else 0
+            total_ratings = restaurant[7]
+            
+            # Determine rating message
+            if total_ratings == 0:
+                rating_message = "Have not been rated by users"
+            else:
+                rating_message = f"Rated by {total_ratings} user{'s' if total_ratings != 1 else ''} (Avg: {avg_rating:.1f}/5)"
+            
             restaurant_list.append({
                 "ResturantsId": restaurant[0],
                 "Name": restaurant[1],
                 "Cuisine Type": restaurant[2],
                 "Location": restaurant[3],
                 "GoogleApiLinks": restaurant[4],
-                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None
+                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None,
+                "AverageRating": round(avg_rating, 2) if avg_rating > 0 else None,
+                "TotalRatings": total_ratings,
+                "RatingMessage": rating_message
             })
         
         cur.close()
@@ -106,11 +138,15 @@ def get_restaurant(restaurant_id):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Get restaurant details
+        # Get restaurant details with rating information
         cur.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at,
+                   COALESCE(AVG(rr.rating), 0) as avg_rating,
+                   COUNT(rr.id) as total_ratings
             FROM restaurants r
+            LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
             WHERE r.id = %s AND r.is_active = TRUE
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
         """, (restaurant_id,))
         restaurant = cur.fetchone()
         
@@ -120,6 +156,15 @@ def get_restaurant(restaurant_id):
         if not restaurant:
             return jsonify({"error": "Restaurant not found"}), 404
         
+        avg_rating = float(restaurant[6]) if restaurant[6] else 0
+        total_ratings = restaurant[7]
+        
+        # Determine rating message
+        if total_ratings == 0:
+            rating_message = "Have not been rated by users"
+        else:
+            rating_message = f"Rated by {total_ratings} user{'s' if total_ratings != 1 else ''} (Avg: {avg_rating:.1f}/5)"
+        
         return jsonify({
             "restaurant": {
                 "ResturantsId": restaurant[0],
@@ -127,7 +172,10 @@ def get_restaurant(restaurant_id):
                 "Cuisine Type": restaurant[2],
                 "Location": restaurant[3],
                 "GoogleApiLinks": restaurant[4],
-                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None
+                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None,
+                "AverageRating": round(avg_rating, 2) if avg_rating > 0 else None,
+                "TotalRatings": total_ratings,
+                "RatingMessage": rating_message
             }
         })
     except Exception as e:
@@ -146,6 +194,9 @@ def create_restaurant():
         return jsonify({"error": "Name, cuisine type, and location are required"}), 400
 
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         cur.execute("""
             INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
             VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
@@ -154,6 +205,9 @@ def create_restaurant():
         
         restaurant_id = cur.fetchone()[0]
         conn.commit()
+        
+        cur.close()
+        conn.close()
         
         return jsonify({
             "message": "Restaurant created successfully",
@@ -167,7 +221,10 @@ def create_restaurant():
             }
         }), 201
     except Exception as e:
-        conn.rollback()
+        if 'conn' in locals():
+            conn.rollback()
+            cur.close()
+            conn.close()
         return jsonify({"error": str(e)}), 400
 
 # --- Signup ---
@@ -289,6 +346,9 @@ def search_restaurants():
     location = request.args.get("location", "")
     
     try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         sql = """
             SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
             FROM restaurants r
@@ -324,8 +384,13 @@ def search_restaurants():
                 "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None
             })
         
+        cur.close()
+        conn.close()
         return jsonify({"restaurants": restaurant_list, "count": len(restaurant_list)})
     except Exception as e:
+        if 'conn' in locals():
+            cur.close()
+            conn.close()
         return jsonify({"error": str(e)}), 500
 
 # --- Google Places API Search ---
@@ -400,6 +465,11 @@ def search_google_places():
         try:
             for place in places:
                 # Format the place data
+                photos = place.get("photos", [])
+                photo_url = None
+                if photos and len(photos) > 0:
+                    photo_url = get_photo_url(photos[0].get("photo_reference"))
+                
                 formatted_place = {
                     "place_id": place.get("place_id"),
                     "name": place.get("name"),
@@ -408,7 +478,8 @@ def search_google_places():
                     "price_level": place.get("price_level"),
                     "types": place.get("types", []),
                     "geometry": place.get("geometry"),
-                    "photos": place.get("photos", [])
+                    "photos": photos,
+                    "photo_url": photo_url
                 }
                 formatted_places.append(formatted_place)
                 
@@ -519,7 +590,7 @@ def add_google_place():
         params = {
             "place_id": place_id,
             "key": GOOGLE_MAPS_API_KEY,
-            "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number"
+            "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number,photos"
         }
         
         response = requests.get(details_url, params=params)
@@ -581,6 +652,10 @@ def add_google_place():
         if lat and lng:
             google_maps_link = f"https://www.google.com/maps/place/?q=place_id:{place_id}"
         
+        # Get database connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
         # Check if restaurant already exists
         cur.execute("SELECT id FROM restaurants WHERE name = %s AND location = %s", (name, address))
         existing = cur.fetchone()
@@ -598,15 +673,26 @@ def add_google_place():
         restaurant_id = cur.fetchone()[0]
         conn.commit()
         
+        cur.close()
+        conn.close()
+        
+        # Generate photo URL if available
+        photos = result.get("photos", [])
+        photo_url = None
+        if photos and len(photos) > 0:
+            photo_url = get_photo_url(photos[0].get("photo_reference"))
+        
         return jsonify({
             "message": "Restaurant added successfully",
+            "restaurant_id": restaurant_id,
             "restaurant": {
                 "ResturantsId": restaurant_id,
                 "Name": name,
                 "Cuisine Type": cuisine_type,
                 "Location": address,
                 "GoogleApiLinks": google_maps_link,
-                "CreatedAt": "2024-01-01T00:00:00"  # Will be set by database
+                "CreatedAt": "2024-01-01T00:00:00",  # Will be set by database
+                "photo_url": photo_url
             },
             "api_usage": {
                 "total_requests": usage["total_requests"],
@@ -618,7 +704,10 @@ def add_google_place():
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"Google Places API request failed: {str(e)}"}), 500
     except Exception as e:
-        conn.rollback()
+        if 'conn' in locals():
+            conn.rollback()
+            cur.close()
+            conn.close()
         return jsonify({"error": str(e)}), 400
 
 # --- API Usage Check ---
@@ -674,7 +763,7 @@ def batch_add_restaurants():
                 params = {
                     "place_id": place_id,
                     "key": GOOGLE_MAPS_API_KEY,
-                    "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number"
+                    "fields": "name,formatted_address,types,rating,price_level,geometry,website,formatted_phone_number,photos"
                 }
                 
                 response = requests.get(details_url, params=params)
@@ -807,6 +896,206 @@ def get_users():
         cur.close()
         conn.close()
         return jsonify({"users": user_list, "count": len(user_list)})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# --- Restaurant Rating System ---
+
+# Rate a restaurant
+@app.route("/restaurants/<int:restaurant_id>/rate", methods=["POST"])
+def rate_restaurant(restaurant_id):
+    # Check authentication
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        rating_data = request.json
+        rating = rating_data.get("rating")
+        review_text = rating_data.get("review_text", "")
+        
+        # Validate rating
+        if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
+            return jsonify({"error": "Rating must be an integer between 1 and 5"}), 400
+        
+        # Get database connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if restaurant exists
+        cur.execute("SELECT id FROM restaurants WHERE id = %s AND is_active = TRUE", (restaurant_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Restaurant not found"}), 404
+        
+        # Check if user already rated this restaurant
+        cur.execute("SELECT id, rating FROM restaurant_ratings WHERE restaurant_id = %s AND user_id = %s", 
+                   (restaurant_id, data["id"]))
+        existing_rating = cur.fetchone()
+        
+        if existing_rating:
+            # Update existing rating
+            cur.execute("""
+                UPDATE restaurant_ratings 
+                SET rating = %s, review_text = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE restaurant_id = %s AND user_id = %s
+                RETURNING id
+            """, (rating, review_text, restaurant_id, data["id"]))
+            rating_id = cur.fetchone()[0]
+            action = "updated"
+        else:
+            # Create new rating
+            cur.execute("""
+                INSERT INTO restaurant_ratings (restaurant_id, user_id, rating, review_text)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
+            """, (restaurant_id, data["id"], rating, review_text))
+            rating_id = cur.fetchone()[0]
+            action = "created"
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": f"Rating {action} successfully",
+            "rating_id": rating_id,
+            "rating": rating,
+            "review_text": review_text
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Get restaurant ratings
+@app.route("/restaurants/<int:restaurant_id>/ratings")
+def get_restaurant_ratings(restaurant_id):
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if restaurant exists
+        cur.execute("SELECT id, name FROM restaurants WHERE id = %s AND is_active = TRUE", (restaurant_id,))
+        restaurant = cur.fetchone()
+        if not restaurant:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Restaurant not found"}), 404
+        
+        # Get all ratings for this restaurant
+        cur.execute("""
+            SELECT r.rating, r.review_text, r.created_at, u.username
+            FROM restaurant_ratings r
+            JOIN users u ON r.user_id = u.id
+            WHERE r.restaurant_id = %s
+            ORDER BY r.created_at DESC
+        """, (restaurant_id,))
+        
+        ratings = cur.fetchall()
+        
+        # Calculate average rating
+        if ratings:
+            avg_rating = sum(rating[0] for rating in ratings) / len(ratings)
+            total_ratings = len(ratings)
+        else:
+            avg_rating = None
+            total_ratings = 0
+        
+        # Format ratings
+        formatted_ratings = []
+        for rating in ratings:
+            formatted_ratings.append({
+                "rating": rating[0],
+                "review_text": rating[1],
+                "created_at": rating[2].isoformat() if rating[2] else None,
+                "username": rating[3]
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "restaurant_id": restaurant_id,
+            "restaurant_name": restaurant[1],
+            "average_rating": round(avg_rating, 2) if avg_rating else None,
+            "total_ratings": total_ratings,
+            "user_rating_message": "Have not been rated by users" if total_ratings == 0 else f"Rated by {total_ratings} user{'s' if total_ratings != 1 else ''}",
+            "ratings": formatted_ratings
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Get user's rating for a specific restaurant
+@app.route("/restaurants/<int:restaurant_id>/my-rating")
+def get_my_rating(restaurant_id):
+    # Check authentication
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get user's rating for this restaurant
+        cur.execute("""
+            SELECT rating, review_text, created_at, updated_at
+            FROM restaurant_ratings
+            WHERE restaurant_id = %s AND user_id = %s
+        """, (restaurant_id, data["id"]))
+        
+        rating = cur.fetchone()
+        
+        cur.close()
+        conn.close()
+        
+        if rating:
+            return jsonify({
+                "rating": rating[0],
+                "review_text": rating[1],
+                "created_at": rating[2].isoformat() if rating[2] else None,
+                "updated_at": rating[3].isoformat() if rating[3] else None
+            })
+        else:
+            return jsonify({"message": "You have not rated this restaurant yet"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Delete user's rating for a restaurant
+@app.route("/restaurants/<int:restaurant_id>/rate", methods=["DELETE"])
+def delete_restaurant_rating(restaurant_id):
+    # Check authentication
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Delete user's rating
+        cur.execute("""
+            DELETE FROM restaurant_ratings
+            WHERE restaurant_id = %s AND user_id = %s
+            RETURNING id
+        """, (restaurant_id, data["id"]))
+        
+        deleted_rating = cur.fetchone()
+        
+        if not deleted_rating:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Rating not found"}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Rating deleted successfully"}), 200
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

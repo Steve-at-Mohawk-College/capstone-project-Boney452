@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
+import RestaurantFlipCard from "./RestaurantFlipCard";
 
 function RestaurantSearch({ onSignOut }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -8,6 +9,7 @@ function RestaurantSearch({ onSignOut }) {
   const [error, setError] = useState("");
   const [apiUsage, setApiUsage] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
+
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -150,58 +152,19 @@ function RestaurantSearch({ onSignOut }) {
       </div>
 
 
+
       {/* Results Grid */}
       {searchResults.length > 0 && (
         <div className="w-full max-w-6xl mx-auto px-4 pb-8" style={{width: '100%', maxWidth: '72rem', margin: '0 auto', padding: '0 1rem 2rem'}}>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" style={{display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem'}}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem'}}>
             {searchResults.map((restaurant, index) => (
-              <div key={restaurant.place_id || index} className="group bg-white/95 backdrop-blur-sm rounded-xl shadow-lg p-4 border border-white/30 hover:shadow-xl transition-all duration-300 transform hover:scale-[1.01]" style={{backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: '0.75rem', padding: '1rem', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'}}>
-                <div className="space-y-3" style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-                  {/* Restaurant Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h4 className="text-base font-bold text-slate-900 mb-1 group-hover:text-blue-600 transition-colors duration-300" style={{fontSize: '1rem', fontWeight: 'bold', color: '#0f172a', marginBottom: '0.25rem'}}>
-                        {restaurant.name}
-                      </h4>
-                      <div className="flex items-center space-x-2 mb-2" style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem'}}>
-                        <div className="flex items-center">
-                          <span className="font-bold text-slate-700 text-sm" style={{fontWeight: 'bold', color: '#334155', fontSize: '0.875rem'}}>
-                            ⭐ {restaurant.rating ? restaurant.rating.toFixed(1) : "N/A"}
-                          </span>
-                        </div>
-                        {restaurant.price_level && (
-                          <div className="text-slate-600 ml-2" style={{color: '#475569'}}>
-                            {Array.from({ length: restaurant.price_level }, (_, i) => "💰").join("")}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-md" style={{width: '2rem', height: '2rem', fontSize: '0.75rem'}}>
-                      {restaurant.name.charAt(0)}
-                    </div>
-                  </div>
-                  
-                  {/* Address */}
-                  <div className="flex items-start space-x-1">
-                    <p className="text-xs text-slate-600 leading-tight" style={{fontSize: '0.75rem', color: '#475569'}}>
-                      📍 {restaurant.formatted_address}
-                    </p>
-                  </div>
-                  
-                  {/* Types */}
-                  {restaurant.types && restaurant.types.length > 0 && (
-                    <div className="flex flex-wrap gap-1" style={{display: 'flex', flexWrap: 'wrap', gap: '0.25rem'}}>
-                      {restaurant.types.slice(0, 3).map((type, idx) => (
-                        <span key={idx} className="px-2 py-1 bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 text-xs rounded-full font-medium border border-blue-200" style={{padding: '0.25rem 0.5rem', backgroundColor: 'rgba(239, 246, 255, 0.5)', color: '#1e40af', fontSize: '0.75rem', fontWeight: '500', borderRadius: '9999px'}}>
-                          {type.replace(/_/g, " ").toUpperCase()}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  
-                </div>
-              </div>
+              <RestaurantFlipCard
+                key={restaurant.place_id || index}
+                restaurant={restaurant}
+                isSearchResult={true}
+                onRatingUpdate={() => {}} // No need to reload since we're only showing search results
+              />
             ))}
           </div>
         </div>
