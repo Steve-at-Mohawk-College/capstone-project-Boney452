@@ -4,7 +4,11 @@ import RestaurantRating from "./RestaurantRating";
 function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
-  const handleCardClick = () => {
+  const handleCardClick = (e) => {
+    // Prevent flipping if user clicks inside a button, form, or textarea
+    if (e.target.closest("button") || e.target.closest("form") || e.target.closest("textarea") || e.target.closest("input")) {
+      return;
+    }
     setIsFlipped(!isFlipped);
   };
 
@@ -28,10 +32,7 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
         <div 
           className="flip-card-front"
           style={{
-            backgroundImage: isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            '--bg-image': isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none'
           }}
         >
           {/* Background overlay for text readability */}
@@ -129,10 +130,7 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
         <div 
           className="flip-card-back"
           style={{
-            backgroundImage: isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            '--bg-image': isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none'
           }}
         >
           {/* Background overlay for text readability */}

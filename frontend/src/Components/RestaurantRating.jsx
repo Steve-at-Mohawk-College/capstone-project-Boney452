@@ -72,12 +72,15 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       if (!restaurantId && searchResultData) {
         // This is a search result, add it to database first
         try {
+          console.log("Search result data:", searchResultData);
+          console.log("Place ID being sent:", searchResultData.place_id);
+          
           const addResponse = await axios.post("http://localhost:5002/add-google-place", {
             place_id: searchResultData.place_id
           });
           
-          if (addResponse.data && addResponse.data.restaurant_id) {
-            restaurantId = addResponse.data.restaurant_id;
+          if (addResponse.data && (addResponse.data.restaurant_id || addResponse.data.restaurant?.ResturantsId)) {
+            restaurantId = addResponse.data.restaurant_id || addResponse.data.restaurant.ResturantsId;
           } else {
             setError("Failed to add restaurant to database. Please try again.");
             setIsSubmitting(false);

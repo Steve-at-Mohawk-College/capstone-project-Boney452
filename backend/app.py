@@ -579,9 +579,12 @@ def add_google_place():
         return jsonify({"error": quota_error}), 429
     
     data = request.json
+    print(f"Received data in add-google-place: {data}")
     place_id = data.get("place_id")
+    print(f"Extracted place_id: {place_id}")
     
     if not place_id:
+        print("Error: No place_id provided")
         return jsonify({"error": "Place ID is required"}), 400
     
     try:
@@ -734,8 +737,8 @@ def batch_add_restaurants():
     if not place_ids:
         return jsonify({"error": "Place IDs are required"}), 400
     
-    if len(place_ids) > 10:
-        return jsonify({"error": "Maximum 10 restaurants per batch"}), 400
+    if len(place_ids) > 20:
+        return jsonify({"error": "Maximum 20 restaurants per batch"}), 400
     
     # Check if we have enough quota
     quota_ok, quota_error = check_api_quota()
