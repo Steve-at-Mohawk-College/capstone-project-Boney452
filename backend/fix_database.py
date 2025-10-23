@@ -33,6 +33,8 @@ def fix_database():
                 cuisine_type VARCHAR(100),
                 location TEXT,
                 google_api_links TEXT,
+                google_rating DECIMAL(3,2),
+                google_place_id VARCHAR(255),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE
             );

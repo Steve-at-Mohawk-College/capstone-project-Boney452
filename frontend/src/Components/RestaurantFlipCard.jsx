@@ -1,173 +1,227 @@
 import { useState } from "react";
 import RestaurantRating from "./RestaurantRating";
 
+/* Inline SVG icons (no emoji) */
+const Star = ({ filled = false, className = "" }) => (
+  <svg viewBox="0 0 20 20" aria-hidden="true"
+       className={`${className} ${filled ? "fill-yellow-400 stroke-yellow-400" : "fill-transparent stroke-slate-300"}`}
+       width="20" height="20" strokeWidth="1.5">
+    <path d="M10 2.5l2.47 4.98 5.5.8-3.98 3.88.94 5.48L10 15.9 5.07 17.64l.94-5.48L2.02 8.28l5.5-.8L10 2.5z"/>
+  </svg>
+);
+
+const Dollar = ({ className = "" }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"
+       className={`${className} stroke-emerald-600`} strokeWidth="1.8" fill="none">
+    <path d="M12 2v20M16.5 7.5c0-1.9-1.9-3.5-4.5-3.5S7.5 5.6 7.5 7.5 9.4 11 12 11s4.5 1.6 4.5 3.5S14.6 18 12 18s-4.5-1.6-4.5-3.5"/>
+  </svg>
+);
+
+/* Helpers */
+const renderStars = (value) => {
+  const v = Math.round(value || 0);
+  return (
+    <div className="star-row">
+      {[1,2,3,4,5].map(i => <Star key={i} filled={i <= v} />)}
+    </div>
+  );
+};
+
+const PriceBadge = ({ level = 0 }) => {
+  if (!level) return null;
+  return (
+    <span className="badge badge-mint">
+      <span className="flex items-center gap-1">
+        {Array.from({ length: level }).map((_,i) => <Dollar key={i} />)}
+      </span>
+    </span>
+  );
+};
+
 function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate }) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   const handleCardClick = (e) => {
-    // Prevent flipping if user clicks inside a button, form, or textarea
-    if (e.target.closest("button") || e.target.closest("form") || e.target.closest("textarea") || e.target.closest("input")) {
-      return;
-    }
+    // Don't flip if interacting with controls
+    if (e.target.closest("button, form, textarea, input, select, label")) return;
     setIsFlipped(!isFlipped);
   };
 
-  const renderStars = (rating) => {
-    if (!rating) return "N/A";
-    return "⭐".repeat(Math.round(rating)) + "☆".repeat(5 - Math.round(rating));
-  };
-
-  const renderPriceLevel = (priceLevel) => {
-    if (!priceLevel) return null;
-    return "💰".repeat(priceLevel);
-  };
+  // Determine if this is from database or Google API
+  const isFromDatabase = restaurant?.from_database === true;
+  
+  const name = isFromDatabase ? restaurant?.name : (isSearchResult ? restaurant?.name : restaurant?.Name);
+  
+  // Google rating (from search results or database)
+  const googleRating = restaurant?.rating ?? null;
+  
+  // Database rating (from our users)
+  const databaseRating = restaurant?.AverageRating ?? null;
+  
+  const googleRatingText = googleRating ? googleRating.toFixed(1) : "N/A";
+  const databaseRatingText = databaseRating ? databaseRating.toFixed(1) : "N/A";
+  const totalRatings = restaurant?.TotalRatings ?? 0;
+  
+  const priceLevel = isFromDatabase ? (restaurant?.price_level || 0) : (isSearchResult ? (restaurant?.price_level || 0) : 0);
+  const address = isFromDatabase ? restaurant?.formatted_address : (isSearchResult ? restaurant?.formatted_address : restaurant?.Location);
+  const ratingMessage = isFromDatabase ? null : (isSearchResult ? null : restaurant?.RatingMessage);
 
   return (
-    <div className="flip-card-container">
-      <div 
+    <div className="flip-card-container fade-up">
+      <div
         className={`flip-card ${isFlipped ? "flipped" : ""}`}
         onClick={handleCardClick}
       >
-        {/* Front of the card - Restaurant Info */}
-        <div 
-          className="flip-card-front"
+        {/* FRONT */}
+        <div
+          className="flip-face flip-front"
           style={{
-            '--bg-image': isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none'
+            '--bg-image': isSearchResult && restaurant?.photo_url ? `url(${restaurant.photo_url})` : 'none'
           }}
         >
-          {/* Background overlay for text readability */}
-          {isSearchResult && restaurant.photo_url && (
-            <div className="card-overlay" />
-          )}
-          
-          {/* Content */}
           <div className="card-content">
-            {/* Restaurant Header */}
-            <div className="restaurant-header">
-              <div className="restaurant-info">
-                <h4 className="restaurant-name">
-                  {isSearchResult ? restaurant.name : restaurant.Name}
-                </h4>
-                <div className="rating-price-container">
-                  <div className="rating-badge">
-                    <span className="rating-text">
-                      {isSearchResult ? 
-                        (restaurant.rating ? `${restaurant.rating.toFixed(1)}` : "N/A") :
-                        (restaurant.AverageRating ? `${restaurant.AverageRating.toFixed(1)}` : "N/A")
-                      }
+            {/* Header */}
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <h4 className="restaurant-name">{name}</h4>
+
+                <div className="meta-row mt-3">
+                  {/* Google Rating */}
+                  {googleRating && (
+                    <span className="badge badge-gold">
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Google:</span>
+                        {renderStars(googleRating)}
+                        <span className="font-extrabold">{googleRatingText}</span>
+                      </span>
                     </span>
-                  </div>
-                  {isSearchResult && restaurant.price_level && (
-                    <div className="price-badge">
-                      <span className="price-text">
-                        {renderPriceLevel(restaurant.price_level)}
-                      </span>
-                    </div>
                   )}
-                  {!isSearchResult && (
-                    <div className="rating-message-badge">
-                      <span className="rating-message-text">
-                        {restaurant.RatingMessage}
+
+                  {/* Database Rating */}
+                  {databaseRating && (
+                    <span className="badge badge-mint">
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-600">Users:</span>
+                        {renderStars(databaseRating)}
+                        <span className="font-extrabold">{databaseRatingText}</span>
+                        {totalRatings > 0 && (
+                          <span className="text-xs text-slate-500">({totalRatings})</span>
+                        )}
                       </span>
-                    </div>
+                    </span>
+                  )}
+
+                  {/* No ratings message */}
+                  {!googleRating && !databaseRating && (
+                    <span className="badge">
+                      <span className="text-slate-600 text-sm">No ratings yet</span>
+                    </span>
+                  )}
+
+                  {/* Price badge */}
+                  {(isFromDatabase || isSearchResult) && <PriceBadge level={priceLevel} />}
+
+                  {/* Rating message for DB items */}
+                  {!isFromDatabase && !isSearchResult && ratingMessage && (
+                    <span className="badge">
+                      <span className="text-slate-700">{ratingMessage}</span>
+                    </span>
                   )}
                 </div>
-              </div>
-              <div className="restaurant-avatar">
-                {(isSearchResult ? restaurant.name : restaurant.Name).charAt(0)}
               </div>
             </div>
 
-            {/* Restaurant Details */}
-            <div className="restaurant-details">
-              {/* Cuisine Type */}
-              {isSearchResult ? (
-                restaurant.types && restaurant.types.length > 0 && (
-                  <div className="cuisine-tags">
-                    {restaurant.types.slice(0, 3).map((type, idx) => (
-                      <span key={idx} className="cuisine-tag">
-                        {type.replace(/_/g, " ").toUpperCase()}
-                      </span>
-                    ))}
-                  </div>
-                )
-              ) : (
-                <div className="cuisine-tags">
-                  <span className="cuisine-tag">
-                    {restaurant["Cuisine Type"]}
-                  </span>
-                </div>
-              )}
+            {/* Details */}
+            <div className="flex-1 mt-4 flex flex-col gap-3 min-h-0">
+                      {/* Cuisine tags */}
+                      {isFromDatabase ? (
+                        restaurant?.types?.length > 0 && (
+                          <div className="cuisine-tags">
+                            {restaurant.types.slice(0,3).map((type, idx) => (
+                              <span key={idx} className="cuisine-tag">
+                                {type.replace(/_/g," ").toUpperCase()}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      ) : isSearchResult ? (
+                        restaurant?.types?.length > 0 && (
+                          <div className="cuisine-tags">
+                            {restaurant.types.slice(0,3).map((type, idx) => (
+                              <span key={idx} className="cuisine-tag">
+                                {type.replace(/_/g," ").toUpperCase()}
+                              </span>
+                            ))}
+                          </div>
+                        )
+                      ) : (
+                        restaurant?.["Cuisine Type"] && (
+                          <div className="cuisine-tags">
+                            <span className="cuisine-tag">{restaurant["Cuisine Type"]}</span>
+                          </div>
+                        )
+                      )}
 
               {/* Address */}
-              <div className="address-container">
-                <div className="address-content">
-                  <span className="address-label">Address:</span>
-                  <p className="address-text">
-                    {isSearchResult ? restaurant.formatted_address : restaurant.Location}
-                  </p>
+              {address && (
+                <div className="address">
+                  <div className="text-sm text-slate-500 font-semibold mb-1">Address</div>
+                  <div className="text-slate-700">{address}</div>
                 </div>
-              </div>
+              )}
 
-              {/* Rating Message for Database Restaurants */}
-              {!isSearchResult && (
-                <div className="rating-message-container">
-                  <p className="rating-message-text">
-                    {restaurant.RatingMessage}
-                  </p>
+              {/* Existing user's review on search results */}
+              {(isFromDatabase || isSearchResult) && restaurant?.user_review && (
+                <div className="glass p-3 rounded-xl">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-sm font-semibold text-slate-700">Your Review</span>
+                    <div className="star-row">
+                      {renderStars(restaurant?.user_rating)}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-700/90 italic">{restaurant.user_review}</p>
                 </div>
               )}
             </div>
 
-            {/* Click to Rate Hint */}
-            <div className="click-hint">
-              <p className="hint-text">Click to rate and review</p>
-            </div>
+                    {/* Flip hint */}
+                    <div className="hint">Click to {(isFromDatabase || isSearchResult) && restaurant?.user_review ? "update your review" : "rate & review"}</div>
           </div>
         </div>
 
-        {/* Back of the card - Rating UI */}
-        <div 
-          className="flip-card-back"
+        {/* BACK */}
+        <div
+          className="flip-face flip-back"
           style={{
-            '--bg-image': isSearchResult && restaurant.photo_url ? `url(${restaurant.photo_url})` : 'none'
+            '--bg-image': isSearchResult && restaurant?.photo_url ? `url(${restaurant.photo_url})` : 'none'
           }}
         >
-          {/* Background overlay for text readability */}
-          {isSearchResult && restaurant.photo_url && (
-            <div className="card-overlay" />
-          )}
-          
-          {/* Content */}
           <div className="card-content">
-            {/* Back Header */}
-            <div className="back-header">
-              <h4 className="back-title">Rate & Review</h4>
-              <div className="back-avatar">R</div>
+            {/* Back header */}
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[1.05rem] font-extrabold text-slate-900 tracking-tight">Rate &amp; Review</h4>
+              {/* optional small brand badge */}
+              <span className="badge">Flavor&nbsp;Quest</span>
             </div>
 
-            {/* Restaurant Name on Back */}
-            <div className="restaurant-name-back">
-              <p className="restaurant-name-text">
-                {isSearchResult ? restaurant.name : restaurant.Name}
-              </p>
+            {/* Name back */}
+            <div className="glass p-2 rounded-lg border border-slate-200/70">
+              <p className="text-sm font-semibold text-slate-800 text-center truncate">{name}</p>
             </div>
 
-            {/* Rating Component */}
-            <div className="rating-component-container">
-              <RestaurantRating 
-                restaurantId={isSearchResult ? null : restaurant.ResturantsId} 
-                restaurantName={isSearchResult ? restaurant.name : restaurant.Name}
-                onRatingUpdate={onRatingUpdate}
-                isCompact={true}
-                searchResultData={isSearchResult ? restaurant : null}
-              />
+            {/* Rating form */}
+            <div className="rating-scroll mt-2">
+                      <RestaurantRating
+                        restaurantId={isFromDatabase ? restaurant?.place_id : (isSearchResult ? null : restaurant?.ResturantsId)}
+                        restaurantName={name}
+                        onRatingUpdate={onRatingUpdate}
+                        isCompact={true}
+                        searchResultData={(isFromDatabase || isSearchResult) ? restaurant : null}
+                      />
             </div>
 
-            {/* Click to Go Back Hint */}
-            <div className="back-hint">
-              <p className="hint-text">Click to go back</p>
-            </div>
+            {/* Back hint */}
+            <div className="hint">Click to go back</div>
           </div>
         </div>
       </div>

@@ -15,6 +15,14 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     return localStorage.getItem("token");
   };
 
+  // Initialize rating and review from search result data
+  useEffect(() => {
+    if (searchResultData && searchResultData.user_review) {
+      setRating(searchResultData.user_rating || 0);
+      setReviewText(searchResultData.user_review || "");
+    }
+  }, [searchResultData]);
+
   // Load restaurant ratings and user's rating
   useEffect(() => {
     if (restaurantId) {
@@ -68,26 +76,39 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     setError("");
 
     try {
-      // If no restaurantId, we need to add the restaurant to database first
+      // If no restaurantId, we need to find the restaurant in our database first
       if (!restaurantId && searchResultData) {
-        // This is a search result, add it to database first
+        // This is a search result, try to find it in our database first
         try {
           console.log("Search result data:", searchResultData);
-          console.log("Place ID being sent:", searchResultData.place_id);
+          console.log("Place ID being searched:", searchResultData.place_id);
           
-          const addResponse = await axios.post("http://localhost:5002/add-google-place", {
-            place_id: searchResultData.place_id
-          });
+          // First, try to find the restaurant by place_id in our database
+          const searchResponse = await axios.get(`http://localhost:5002/restaurants/search?place_id=${searchResultData.place_id}`);
           
-          if (addResponse.data && (addResponse.data.restaurant_id || addResponse.data.restaurant?.ResturantsId)) {
-            restaurantId = addResponse.data.restaurant_id || addResponse.data.restaurant.ResturantsId;
+          if (searchResponse.data && searchResponse.data.length > 0) {
+            // Restaurant found in database, use its ID
+            restaurantId = searchResponse.data[0].ResturantsId;
+            console.log("Found restaurant in database with ID:", restaurantId);
           } else {
-            setError("Failed to add restaurant to database. Please try again.");
-            setIsSubmitting(false);
-            return;
+            // Restaurant not found, add it to database
+            console.log("Restaurant not found in database, adding it...");
+            const addResponse = await axios.post("http://localhost:5002/add-google-place", {
+              place_id: searchResultData.place_id
+            });
+            
+            if (addResponse.data && (addResponse.data.restaurant_id || addResponse.data.restaurant?.ResturantsId)) {
+              restaurantId = addResponse.data.restaurant_id || addResponse.data.restaurant.ResturantsId;
+              console.log("Added restaurant to database with ID:", restaurantId);
+            } else {
+              setError("Failed to add restaurant to database. Please try again.");
+              setIsSubmitting(false);
+              return;
+            }
           }
-        } catch (addErr) {
-          setError("Failed to add restaurant to database. Please try again.");
+        } catch (searchError) {
+          console.error("Error searching/adding restaurant:", searchError);
+          setError("Failed to find or add restaurant to database. Please try again.");
           setIsSubmitting(false);
           return;
         }
@@ -178,16 +199,18 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
   if (!restaurantId && searchResultData) {
     return (
       <div className={`${isCompact ? 'p-2' : 'bg-white p-4 rounded-lg shadow-md'}`}>
-        {!isCompact && <h3 className="text-lg font-semibold mb-3">Rate This Restaurant</h3>}
+        {!isCompact && <h3 className="text-lg font-semibold mb-3">
+          {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
+        </h3>}
         
-        <div className="text-center mb-4">
-          <p className="text-sm text-gray-600 mb-2">
-            Be the first to rate this restaurant!
-          </p>
-          <div className="text-xs text-gray-500">
-            💡 Rating will add this restaurant to our database
+        {/* Show message only if user hasn't rated yet */}
+        {!searchResultData.user_review && (
+          <div className="text-center mb-4">
+            <p className="text-sm text-gray-600 mb-2">
+              Be the first to rate this restaurant!
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Rating Form */}
         {getToken() && (
@@ -200,7 +223,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 }}
                 className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-indigo-700 w-full font-semibold shadow-lg transition-all duration-300 transform hover:scale-105"
               >
-                Rate This Restaurant
+                {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
               </button>
             ) : (
               <form onSubmit={handleSubmitRating} className="space-y-4" onClick={(e) => e.stopPropagation()}>

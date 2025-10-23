@@ -92,21 +92,22 @@ def get_restaurants():
         cur = conn.cursor()
         
         cur.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at,
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at,
                    COALESCE(AVG(rr.rating), 0) as avg_rating,
                    COUNT(rr.id) as total_ratings
             FROM restaurants r
             LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
             WHERE r.is_active = TRUE
-            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at
             ORDER BY r.created_at DESC
         """)
         restaurants = cur.fetchall()
         
         restaurant_list = []
         for restaurant in restaurants:
-            avg_rating = float(restaurant[6]) if restaurant[6] else 0
-            total_ratings = restaurant[7]
+            avg_rating = float(restaurant[8]) if restaurant[8] else 0
+            total_ratings = restaurant[9]
+            google_rating = float(restaurant[5]) if restaurant[5] else None
             
             # Determine rating message
             if total_ratings == 0:
@@ -120,7 +121,9 @@ def get_restaurants():
                 "Cuisine Type": restaurant[2],
                 "Location": restaurant[3],
                 "GoogleApiLinks": restaurant[4],
-                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None,
+                "rating": google_rating,  # Google rating
+                "google_place_id": restaurant[6],
+                "CreatedAt": restaurant[7].isoformat() if restaurant[7] else None,
                 "AverageRating": round(avg_rating, 2) if avg_rating > 0 else None,
                 "TotalRatings": total_ratings,
                 "RatingMessage": rating_message
@@ -140,13 +143,13 @@ def get_restaurant(restaurant_id):
         
         # Get restaurant details with rating information
         cur.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at,
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at,
                    COALESCE(AVG(rr.rating), 0) as avg_rating,
                    COUNT(rr.id) as total_ratings
             FROM restaurants r
             LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
             WHERE r.id = %s AND r.is_active = TRUE
-            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.created_at
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at
         """, (restaurant_id,))
         restaurant = cur.fetchone()
         
@@ -156,8 +159,9 @@ def get_restaurant(restaurant_id):
         if not restaurant:
             return jsonify({"error": "Restaurant not found"}), 404
         
-        avg_rating = float(restaurant[6]) if restaurant[6] else 0
-        total_ratings = restaurant[7]
+        avg_rating = float(restaurant[8]) if restaurant[8] else 0
+        total_ratings = restaurant[9]
+        google_rating = float(restaurant[5]) if restaurant[5] else None
         
         # Determine rating message
         if total_ratings == 0:
@@ -172,7 +176,9 @@ def get_restaurant(restaurant_id):
                 "Cuisine Type": restaurant[2],
                 "Location": restaurant[3],
                 "GoogleApiLinks": restaurant[4],
-                "CreatedAt": restaurant[5].isoformat() if restaurant[5] else None,
+                "rating": google_rating,  # Google rating
+                "google_place_id": restaurant[6],
+                "CreatedAt": restaurant[7].isoformat() if restaurant[7] else None,
                 "AverageRating": round(avg_rating, 2) if avg_rating > 0 else None,
                 "TotalRatings": total_ratings,
                 "RatingMessage": rating_message
@@ -338,6 +344,49 @@ def me():
         return jsonify({"error": str(e)}), 500
 
 
+# --- Search Restaurants by Place ID ---
+@app.route("/restaurants/search")
+def search_restaurants_by_place_id():
+    place_id = request.args.get("place_id")
+    
+    if not place_id:
+        return jsonify({"error": "Place ID is required"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        sql = """
+            SELECT id, name, cuisine_type, location, google_api_links, created_at
+            FROM restaurants 
+            WHERE google_api_links LIKE %s AND is_active = TRUE
+        """
+        
+        cur.execute(sql, (f"%place_id:{place_id}%",))
+        restaurants = cur.fetchall()
+        
+        cur.close()
+        conn.close()
+        
+        # Convert to list of dictionaries
+        restaurant_list = []
+        for restaurant in restaurants:
+            restaurant_dict = {
+                "ResturantsId": restaurant[0],
+                "name": restaurant[1],
+                "cuisine_type": restaurant[2],
+                "location": restaurant[3],
+                "google_api_links": restaurant[4],
+                "created_at": restaurant[5].isoformat() if restaurant[5] else None
+            }
+            restaurant_list.append(restaurant_dict)
+        
+        return jsonify(restaurant_list)
+        
+    except Exception as e:
+        print(f"Error searching restaurants by place_id: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # --- Search ---
 @app.route("/search")
 def search_restaurants():
@@ -396,10 +445,13 @@ def search_restaurants():
 # --- Google Places API Search ---
 @app.route("/google-search", methods=["POST"])
 def search_google_places():
-    # Check API quota first
-    quota_ok, quota_error = check_api_quota()
-    if not quota_ok:
-        return jsonify({"error": quota_error}), 429
+    # Check if user is authenticated (optional)
+    user_data = None
+    try:
+        user_data, _ = _require_auth(request)
+    except:
+        # User not authenticated, that's fine for search
+        pass
     
     data = request.json
     query = data.get("query", "").strip()
@@ -408,6 +460,102 @@ def search_google_places():
     
     if not query:
         return jsonify({"error": "Query is required"}), 400
+    
+    # First, check if we have restaurants in our database for this location
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        # Search database for restaurants in this location
+        cur.execute("""
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at,
+                   COALESCE(AVG(rr.rating), 0) as avg_rating,
+                   COUNT(rr.id) as total_ratings
+            FROM restaurants r
+            LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
+            WHERE r.is_active = TRUE 
+            AND (LOWER(r.location) LIKE LOWER(%s) OR LOWER(r.name) LIKE LOWER(%s))
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at
+            ORDER BY r.created_at DESC
+            LIMIT 20
+        """, (f"%{location}%", f"%{query}%"))
+        
+        db_restaurants = cur.fetchall()
+        
+        if db_restaurants:
+            # We have restaurants in database, format and return them
+            formatted_places = []
+            
+            for restaurant in db_restaurants:
+                avg_rating = float(restaurant[8]) if restaurant[8] else 0
+                total_ratings = restaurant[9]
+                google_rating = float(restaurant[5]) if restaurant[5] else None
+                
+                # Get user's review if authenticated
+                user_review = None
+                user_rating = None
+                if user_data:
+                    cur.execute("""
+                        SELECT rating, review_text 
+                        FROM restaurant_ratings 
+                        WHERE restaurant_id = %s AND user_id = %s
+                    """, (restaurant[0], user_data["id"]))
+                    user_review_data = cur.fetchone()
+                    if user_review_data:
+                        user_rating = user_review_data[0]
+                        user_review = user_review_data[1]
+                
+                # Generate photo URL if we have place_id
+                photo_url = None
+                if restaurant[6]:  # google_place_id
+                    photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={restaurant[6]}&key={GOOGLE_MAPS_API_KEY}"
+                
+                # Convert cuisine type to types array format
+                cuisine_types = []
+                if restaurant[2]:  # cuisine_type
+                    cuisine_types.append(restaurant[2])
+                else:
+                    cuisine_types.append("restaurant")
+                
+                formatted_places.append({
+                    "place_id": restaurant[6] or f"db_{restaurant[0]}",
+                    "name": restaurant[1],
+                    "formatted_address": restaurant[3],
+                    "rating": google_rating,
+                    "price_level": 0,  # We don't store price level in DB yet
+                    "types": cuisine_types,
+                    "geometry": {"location": {"lat": 0, "lng": 0}},  # Placeholder
+                    "photos": [],
+                    "photo_url": photo_url,
+                    "user_review": user_review,
+                    "user_rating": user_rating,
+                    "AverageRating": round(avg_rating, 2) if avg_rating > 0 else None,
+                    "TotalRatings": total_ratings,
+                    "from_database": True
+                })
+            
+            cur.close()
+            conn.close()
+            
+            return jsonify({
+                "places": formatted_places,
+                "count": len(formatted_places),
+                "source": "database",
+                "message": f"Found {len(formatted_places)} restaurants from our database"
+            })
+    
+    except Exception as e:
+        print(f"Database search error: {e}")
+        # Continue to Google API search if database search fails
+    
+    cur.close()
+    conn.close()
+    
+    # If no restaurants found in database, proceed with Google API search
+    # Check API quota first
+    quota_ok, quota_error = check_api_quota()
+    if not quota_ok:
+        return jsonify({"error": quota_error}), 429
     
     # Basic validation - only check for very obvious issues
     import re
@@ -479,7 +627,10 @@ def search_google_places():
                     "types": place.get("types", []),
                     "geometry": place.get("geometry"),
                     "photos": photos,
-                    "photo_url": photo_url
+                    "photo_url": photo_url,
+                    "user_review": None,
+                    "user_rating": None,
+                    "from_database": False
                 }
                 formatted_places.append(formatted_place)
                 
@@ -531,15 +682,53 @@ def search_google_places():
                     existing = cur.fetchone()
                     
                     if not existing:
-                        # Insert into database
+                        # Insert into database with Google rating
                         cur.execute("""
-                            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
-                            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+                            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, created_at, is_active)
+                            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
                             RETURNING id
-                        """, (name, cuisine_type, address, google_maps_link))
+                        """, (name, cuisine_type, address, google_maps_link, place.get('rating'), place.get('place_id')))
                         
                         restaurant_id = cur.fetchone()[0]
                         saved_count += 1
+                    else:
+                        restaurant_id = existing[0]
+                    
+                    # Get aggregate database rating information
+                    cur.execute("""
+                        SELECT COALESCE(AVG(rating), 0) as avg_rating, COUNT(id) as total_ratings
+                        FROM restaurant_ratings 
+                        WHERE restaurant_id = %s
+                    """, (restaurant_id,))
+                    db_rating_data = cur.fetchone()
+                    
+                    # Check if user has a review for this restaurant
+                    if user_data:
+                        cur.execute("""
+                            SELECT rating, review_text 
+                            FROM restaurant_ratings 
+                            WHERE restaurant_id = %s AND user_id = %s
+                        """, (restaurant_id, user_data["id"]))
+                        user_review_data = cur.fetchone()
+                        
+                        if user_review_data:
+                            # Update the formatted_place with user's review
+                            for fp in formatted_places:
+                                if fp["place_id"] == place.get("place_id"):
+                                    fp["user_rating"] = user_review_data[0]
+                                    fp["user_review"] = user_review_data[1]
+                                    break
+                    
+                    # Update the formatted_place with database rating information
+                    if db_rating_data:
+                        avg_rating = float(db_rating_data[0]) if db_rating_data[0] else 0
+                        total_ratings = db_rating_data[1]
+                        
+                        for fp in formatted_places:
+                            if fp["place_id"] == place.get("place_id"):
+                                fp["AverageRating"] = round(avg_rating, 2) if avg_rating > 0 else None
+                                fp["TotalRatings"] = total_ratings
+                                break
                         
                 except Exception as e:
                     # If saving fails, continue with other restaurants
@@ -557,6 +746,7 @@ def search_google_places():
             "places": formatted_places,
             "count": len(formatted_places),
             "saved_to_database": saved_count,
+            "source": "google_api",
             "status": places_data.get("status"),
             "api_usage": {
                 "total_requests": usage["total_requests"],
@@ -666,12 +856,12 @@ def add_google_place():
         if existing:
             return jsonify({"error": "Restaurant already exists in database"}), 400
         
-        # Insert into database
+        # Insert into database with Google rating
         cur.execute("""
-            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
-            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, created_at, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
             RETURNING id
-        """, (name, cuisine_type, address, google_maps_link))
+        """, (name, cuisine_type, address, google_maps_link, result.get('rating'), place_id))
         
         restaurant_id = cur.fetchone()[0]
         conn.commit()
@@ -838,10 +1028,10 @@ def batch_add_restaurants():
                 
                 # Insert into database
                 cur.execute("""
-                    INSERT INTO restaurants (name, cuisine_type, location, google_api_links, created_at, is_active)
-                    VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+                    INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, created_at, is_active)
+                    VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
                     RETURNING id
-                """, (name, cuisine_type, address, google_maps_link))
+                """, (name, cuisine_type, address, google_maps_link, None, None))
                 
                 restaurant_id = cur.fetchone()[0]
                 results.append({
