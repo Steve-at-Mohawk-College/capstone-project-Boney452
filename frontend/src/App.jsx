@@ -3,9 +3,10 @@ import Login from "./Components/login";
 import Signup from "./Components/signup";
 import RestaurantSearch from "./Components/RestaurantSearch";
 import UserManagement from "./Components/UserManagement";
+import ChatSystem from "./Components/ChatSystem";
 
 function App() {
-  const [currentView, setCurrentView] = useState("landing"); // "landing", "login", "signup", "search", "results"
+  const [currentView, setCurrentView] = useState("landing"); // "landing", "login", "signup", "search", "results", "chat"
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [userInfo, setUserInfo] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
@@ -179,6 +180,7 @@ function App() {
           setUserInfo(null);
         }}
         onManageUsers={() => setCurrentView("users")}
+        onOpenChat={() => setCurrentView("chat")}
         isAdmin={isAdmin()}
       />
     );
@@ -200,6 +202,12 @@ function App() {
             <h1 className="header-xl fade-up">Search Results</h1>
           </div>
           <div className="flex gap-3">
+            <button 
+              onClick={() => setCurrentView("chat")} 
+              className="btn btn-ghost"
+            >
+              💬 Chat
+            </button>
             {isAdmin() && (
               <button 
                 onClick={() => setCurrentView("users")} 
@@ -286,6 +294,21 @@ function App() {
           }} 
         />
       </div>
+    );
+  }
+
+  // Chat Page
+  if (currentView === "chat") {
+    return (
+      <ChatSystem
+        userInfo={userInfo}
+        onSignOut={() => {
+          localStorage.removeItem("token");
+          setToken("");
+          setCurrentView("landing");
+          setUserInfo(null);
+        }}
+      />
     );
   }
 

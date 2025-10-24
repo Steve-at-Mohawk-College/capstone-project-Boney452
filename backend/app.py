@@ -1530,6 +1530,841 @@ def delete_restaurant_rating(restaurant_id):
         return jsonify({"error": str(e)}), 500
 
 # -----------------------------
+# Chat System Endpoints
+# -----------------------------
+
+@app.route("/groups", methods=["GET"])
+@rate_limit(max_requests=100, window=3600)
+def get_groups():
+    """Get all groups that the user is a member of"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get groups where user is a member
+        cur.execute("""
+            SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+                   u.username as creator_name,
+                   COUNT(gm.user_id) as member_count,
+                   gm.role as user_role
+            FROM groups g
+            JOIN group_members gm ON g.id = gm.group_id
+            JOIN users u ON g.created_by = u.id
+            WHERE gm.user_id = %s AND gm.is_active = TRUE AND g.is_active = TRUE
+            GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username, gm.role
+            ORDER BY g.updated_at DESC
+        """, (user_id,))
+        
+        groups = []
+        for row in cur.fetchall():
+            groups.append({
+                "id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "created_by": row[3],
+                "created_at": row[4].isoformat() if row[4] else None,
+                "updated_at": row[5].isoformat() if row[5] else None,
+                "creator_name": row[6],
+                "member_count": row[7],
+                "user_role": row[8]
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({"groups": groups})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/discover", methods=["GET"])
+@rate_limit(max_requests=100, window=3600)
+def discover_groups():
+    """Get all public groups that the user can join"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get all active groups with member count and user's role
+        cur.execute("""
+            SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+                   u.username as creator_name,
+                   COUNT(DISTINCT gm_all.user_id) as member_count,
+                   COALESCE(gm_user.role, 'not_member') as user_role
+            FROM groups g
+            JOIN users u ON g.created_by = u.id
+            LEFT JOIN group_members gm_all ON g.id = gm_all.group_id AND gm_all.is_active = TRUE
+            LEFT JOIN group_members gm_user ON g.id = gm_user.group_id AND gm_user.user_id = %s AND gm_user.is_active = TRUE
+            WHERE g.is_active = TRUE
+            GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username, gm_user.role
+            ORDER BY g.updated_at DESC
+        """, (user_id,))
+        
+        groups = []
+        for row in cur.fetchall():
+            groups.append({
+                "id": row[0],
+                "name": row[1],
+                "description": row[2],
+                "created_by": row[3],
+                "created_at": row[4].isoformat() if row[4] else None,
+                "updated_at": row[5].isoformat() if row[5] else None,
+                "creator_name": row[6],
+                "member_count": row[7],
+                "user_role": row[8] if row[8] != 'not_member' else None
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({"groups": groups})
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups", methods=["POST"])
+@rate_limit(max_requests=50, window=3600)
+@require_csrf
+def create_group():
+    """Create a new group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        # Get request data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        name = sanitize_input(request_data.get('name', ''), 255)
+        description = sanitize_input(request_data.get('description', ''), 1000)
+        
+        if not name:
+            return jsonify({"error": "Group name is required"}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Create group
+        cur.execute("""
+            INSERT INTO groups (name, description, created_by)
+            VALUES (%s, %s, %s)
+            RETURNING id, created_at
+        """, (name, description, user_id))
+        
+        group_result = cur.fetchone()
+        group_id = group_result[0]
+        created_at = group_result[1]
+        
+        # Add creator as admin member
+        cur.execute("""
+            INSERT INTO group_members (group_id, user_id, role)
+            VALUES (%s, %s, 'admin')
+        """, (group_id, user_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Group created successfully",
+            "group": {
+                "id": group_id,
+                "name": name,
+                "description": description,
+                "created_by": user_id,
+                "created_at": created_at.isoformat(),
+                "user_role": "admin"
+            }
+        }), 201
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>", methods=["GET"])
+@rate_limit(max_requests=100, window=3600)
+def get_group_details(group_id):
+    """Get detailed information about a specific group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is member of the group
+        cur.execute("""
+            SELECT gm.role FROM group_members gm
+            WHERE gm.group_id = %s AND gm.user_id = %s AND gm.is_active = TRUE
+        """, (group_id, user_id))
+        
+        user_role = cur.fetchone()
+        if not user_role:
+            return jsonify({"error": "You are not a member of this group"}), 403
+        
+        # Get group details
+        cur.execute("""
+            SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+                   u.username as creator_name,
+                   COUNT(gm.user_id) as member_count
+            FROM groups g
+            JOIN users u ON g.created_by = u.id
+            LEFT JOIN group_members gm ON g.id = gm.group_id AND gm.is_active = TRUE
+            WHERE g.id = %s AND g.is_active = TRUE
+            GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username
+        """, (group_id,))
+        
+        group_result = cur.fetchone()
+        if not group_result:
+            return jsonify({"error": "Group not found"}), 404
+        
+        # Get group members
+        cur.execute("""
+            SELECT u.id, u.username, u.email, gm.joined_at, gm.role
+            FROM group_members gm
+            JOIN users u ON gm.user_id = u.id
+            WHERE gm.group_id = %s AND gm.is_active = TRUE
+            ORDER BY gm.joined_at ASC
+        """, (group_id,))
+        
+        members = []
+        for row in cur.fetchall():
+            members.append({
+                "id": row[0],
+                "username": row[1],
+                "email": row[2],
+                "joined_at": row[3].isoformat() if row[3] else None,
+                "role": row[4]
+            })
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "group": {
+                "id": group_result[0],
+                "name": group_result[1],
+                "description": group_result[2],
+                "created_by": group_result[3],
+                "created_at": group_result[4].isoformat() if group_result[4] else None,
+                "updated_at": group_result[5].isoformat() if group_result[5] else None,
+                "creator_name": group_result[6],
+                "member_count": group_result[7],
+                "user_role": user_role[0]
+            },
+            "members": members
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>/join", methods=["POST"])
+@rate_limit(max_requests=50, window=3600)
+@require_csrf
+def join_group(group_id):
+    """Join a group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if group exists and is active
+        cur.execute("SELECT id FROM groups WHERE id = %s AND is_active = TRUE", (group_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Group not found"}), 404
+        
+        # Check if user is already a member
+        cur.execute("""
+            SELECT id FROM group_members 
+            WHERE group_id = %s AND user_id = %s
+        """, (group_id, user_id))
+        
+        existing_member = cur.fetchone()
+        if existing_member:
+            # Reactivate if inactive
+            cur.execute("""
+                UPDATE group_members 
+                SET is_active = TRUE, joined_at = CURRENT_TIMESTAMP
+                WHERE group_id = %s AND user_id = %s
+            """, (group_id, user_id))
+        else:
+            # Add new member
+            cur.execute("""
+                INSERT INTO group_members (group_id, user_id, role)
+                VALUES (%s, %s, 'member')
+            """, (group_id, user_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Successfully joined the group"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>/leave", methods=["POST"])
+@rate_limit(max_requests=50, window=3600)
+@require_csrf
+def leave_group(group_id):
+    """Leave a group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is a member
+        cur.execute("""
+            SELECT role FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (group_id, user_id))
+        
+        member_result = cur.fetchone()
+        if not member_result:
+            return jsonify({"error": "You are not a member of this group"}), 403
+        
+        # Check if user is the creator (admin)
+        if member_result[0] == 'admin':
+            # Check if there are other admins
+            cur.execute("""
+                SELECT COUNT(*) FROM group_members 
+                WHERE group_id = %s AND role = 'admin' AND is_active = TRUE
+            """, (group_id,))
+            
+            admin_count = cur.fetchone()[0]
+            if admin_count <= 1:
+                return jsonify({"error": "Cannot leave group as the only admin. Transfer admin role or delete the group."}), 400
+        
+        # Deactivate membership
+        cur.execute("""
+            UPDATE group_members 
+            SET is_active = FALSE
+            WHERE group_id = %s AND user_id = %s
+        """, (group_id, user_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Successfully left the group"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>", methods=["PUT"])
+@rate_limit(max_requests=50, window=3600)
+@require_csrf
+def update_group(group_id):
+    """Update group details (admin only)"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        # Get request data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        name = sanitize_input(request_data.get('name', ''), 255)
+        description = sanitize_input(request_data.get('description', ''), 1000)
+        
+        if not name:
+            return jsonify({"error": "Group name is required"}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is admin of the group
+        cur.execute("""
+            SELECT role FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (group_id, user_id))
+        
+        user_role = cur.fetchone()
+        if not user_role or user_role[0] != 'admin':
+            return jsonify({"error": "Only group admins can update group details"}), 403
+        
+        # Update group
+        cur.execute("""
+            UPDATE groups 
+            SET name = %s, description = %s, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s AND is_active = TRUE
+        """, (name, description, group_id))
+        
+        if cur.rowcount == 0:
+            return jsonify({"error": "Group not found"}), 404
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Group updated successfully"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>", methods=["DELETE"])
+@rate_limit(max_requests=50, window=3600)
+@require_csrf
+def delete_group(group_id):
+    """Delete a group (admin only)"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is admin of the group
+        cur.execute("""
+            SELECT role FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (group_id, user_id))
+        
+        user_role = cur.fetchone()
+        if not user_role or user_role[0] != 'admin':
+            return jsonify({"error": "Only group admins can delete the group"}), 403
+        
+        # Soft delete group (set is_active = FALSE)
+        cur.execute("""
+            UPDATE groups 
+            SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (group_id,))
+        
+        if cur.rowcount == 0:
+            return jsonify({"error": "Group not found"}), 404
+        
+        # Deactivate all memberships
+        cur.execute("""
+            UPDATE group_members 
+            SET is_active = FALSE
+            WHERE group_id = %s
+        """, (group_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Group deleted successfully"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+# -----------------------------
+# Messaging Endpoints
+# -----------------------------
+
+@app.route("/groups/<int:group_id>/messages", methods=["GET"])
+@rate_limit(max_requests=200, window=3600)
+def get_messages(group_id):
+    """Get messages for a specific group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 50))
+        offset = (page - 1) * limit
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is member of the group
+        cur.execute("""
+            SELECT role FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (group_id, user_id))
+        
+        if not cur.fetchone():
+            return jsonify({"error": "You are not a member of this group"}), 403
+        
+        # Get messages
+        cur.execute("""
+            SELECT m.id, m.content, m.message_type, m.created_at, m.updated_at, 
+                   m.is_edited, m.is_deleted, m.user_id, u.username
+            FROM messages m
+            JOIN users u ON m.user_id = u.id
+            WHERE m.group_id = %s AND m.is_deleted = FALSE
+            ORDER BY m.created_at DESC
+            LIMIT %s OFFSET %s
+        """, (group_id, limit, offset))
+        
+        messages = []
+        for row in cur.fetchall():
+            messages.append({
+                "id": row[0],
+                "content": row[1],
+                "message_type": row[2],
+                "created_at": row[3].isoformat() if row[3] else None,
+                "updated_at": row[4].isoformat() if row[4] else None,
+                "is_edited": row[5],
+                "is_deleted": row[6],
+                "user_id": row[7],
+                "username": row[8]
+            })
+        
+        # Get total message count
+        cur.execute("""
+            SELECT COUNT(*) FROM messages 
+            WHERE group_id = %s AND is_deleted = FALSE
+        """, (group_id,))
+        
+        total_messages = cur.fetchone()[0]
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "messages": messages,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total_messages,
+                "pages": (total_messages + limit - 1) // limit
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/groups/<int:group_id>/messages", methods=["POST"])
+@rate_limit(max_requests=100, window=3600)
+@require_csrf
+def send_message(group_id):
+    """Send a message to a group"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        # Get request data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        content = sanitize_input(request_data.get('content', ''), 2000)
+        message_type = sanitize_input(request_data.get('message_type', 'text'), 20)
+        
+        if not content:
+            return jsonify({"error": "Message content is required"}), 400
+        
+        if message_type not in ['text', 'image', 'file', 'system']:
+            return jsonify({"error": "Invalid message type"}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user is member of the group
+        cur.execute("""
+            SELECT role FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (group_id, user_id))
+        
+        if not cur.fetchone():
+            return jsonify({"error": "You are not a member of this group"}), 403
+        
+        # Insert message
+        cur.execute("""
+            INSERT INTO messages (group_id, user_id, content, message_type)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+        """, (group_id, user_id, content, message_type))
+        
+        message_result = cur.fetchone()
+        message_id = message_result[0]
+        created_at = message_result[1]
+        
+        # Get username for response
+        cur.execute("SELECT username FROM users WHERE id = %s", (user_id,))
+        username = cur.fetchone()[0]
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Message sent successfully",
+            "message_data": {
+                "id": message_id,
+                "content": content,
+                "message_type": message_type,
+                "created_at": created_at.isoformat(),
+                "user_id": user_id,
+                "username": username
+            }
+        }), 201
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/messages/<int:message_id>", methods=["PUT"])
+@rate_limit(max_requests=100, window=3600)
+@require_csrf
+def edit_message(message_id):
+    """Edit a message (only by the author)"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        # Get request data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        content = sanitize_input(request_data.get('content', ''), 2000)
+        
+        if not content:
+            return jsonify({"error": "Message content is required"}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if message exists and user is the author
+        cur.execute("""
+            SELECT id, user_id, group_id FROM messages 
+            WHERE id = %s AND is_deleted = FALSE
+        """, (message_id,))
+        
+        message_result = cur.fetchone()
+        if not message_result:
+            return jsonify({"error": "Message not found"}), 404
+        
+        if message_result[1] != user_id:
+            return jsonify({"error": "You can only edit your own messages"}), 403
+        
+        # Check if user is still a member of the group
+        cur.execute("""
+            SELECT id FROM group_members 
+            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+        """, (message_result[2], user_id))
+        
+        if not cur.fetchone():
+            return jsonify({"error": "You are not a member of this group"}), 403
+        
+        # Update message
+        cur.execute("""
+            UPDATE messages 
+            SET content = %s, is_edited = TRUE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (content, message_id))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Message updated successfully"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/messages/<int:message_id>", methods=["DELETE"])
+@rate_limit(max_requests=100, window=3600)
+@require_csrf
+def delete_message(message_id):
+    """Delete a message (only by the author or group admin)"""
+    try:
+        # Get user from token
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({"error": "No token provided"}), 401
+        
+        token = token.split(' ')[1]
+        try:
+            data = serializer.loads(token, max_age=3600)
+        except (BadSignature, SignatureExpired):
+            return jsonify({"error": "Invalid or expired token"}), 401
+        
+        user_id = data["id"]
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if message exists
+        cur.execute("""
+            SELECT id, user_id, group_id FROM messages 
+            WHERE id = %s AND is_deleted = FALSE
+        """, (message_id,))
+        
+        message_result = cur.fetchone()
+        if not message_result:
+            return jsonify({"error": "Message not found"}), 404
+        
+        # Check if user is the author or a group admin
+        is_author = message_result[1] == user_id
+        
+        if not is_author:
+            # Check if user is admin of the group
+            cur.execute("""
+                SELECT role FROM group_members 
+                WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+            """, (message_result[2], user_id))
+            
+            user_role = cur.fetchone()
+            if not user_role or user_role[0] != 'admin':
+                return jsonify({"error": "You can only delete your own messages or be a group admin"}), 403
+        
+        # Soft delete message
+        cur.execute("""
+            UPDATE messages 
+            SET is_deleted = TRUE, updated_at = CURRENT_TIMESTAMP
+            WHERE id = %s
+        """, (message_id,))
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"message": "Message deleted successfully"})
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
+
+# -----------------------------
 # Run Server
 # -----------------------------
 if __name__ == "__main__":

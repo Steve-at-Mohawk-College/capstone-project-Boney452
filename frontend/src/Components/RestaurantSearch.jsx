@@ -4,7 +4,7 @@ import RestaurantFlipCard from "./RestaurantFlipCard";
 import { sanitizeInput } from "../utils/security";
 import ErrorBoundary from "./ErrorBoundary";
 
-function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
+function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +60,12 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
       
       {/* 🔹 Top Right Buttons (fixed) */}
       <div className="absolute top-6 right-6 flex gap-3 z-10">
+        <button
+          onClick={onOpenChat}
+          className="btn btn-ghost shadow-lg"
+        >
+          💬 Chat
+        </button>
         {isAdmin && (
           <button
             onClick={onManageUsers}
