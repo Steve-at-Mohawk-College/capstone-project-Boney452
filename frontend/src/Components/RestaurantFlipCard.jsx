@@ -19,27 +19,42 @@ const Dollar = ({ className = "" }) => (
 
 /* Helpers */
 const renderStars = (value) => {
-  const v = Math.round(value || 0);
-  return (
-    <div className="star-row">
-      {[1,2,3,4,5].map(i => <Star key={i} filled={i <= v} />)}
-    </div>
-  );
+  try {
+    const v = Math.round(Number(value) || 0);
+    return (
+      <div className="star-row">
+        {[1,2,3,4,5].map(i => <Star key={i} filled={i <= v} />)}
+      </div>
+    );
+  } catch (error) {
+    console.error("Error rendering stars:", error);
+    return <div className="star-row">Error</div>;
+  }
 };
 
 const PriceBadge = ({ level = 0 }) => {
-  if (!level) return null;
-  return (
-    <span className="badge badge-mint">
-      <span className="flex items-center gap-1">
-        {Array.from({ length: level }).map((_,i) => <Dollar key={i} />)}
+  try {
+    if (!level || typeof level !== 'number' || level <= 0) return null;
+    return (
+      <span className="badge badge-mint">
+        <span className="flex items-center gap-1">
+          {Array.from({ length: Math.floor(level) }).map((_,i) => <Dollar key={i} />)}
+        </span>
       </span>
-    </span>
-  );
+    );
+  } catch (error) {
+    console.error("Error rendering price badge:", error);
+    return null;
+  }
 };
 
-function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate }) {
+function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate, onRestaurantDataUpdate }) {
   const [isFlipped, setIsFlipped] = useState(false);
+
+  // Safety check - if no restaurant data, return null
+  if (!restaurant) {
+    return null;
+  }
 
   const handleCardClick = (e) => {
     // Don't flip if interacting with controls
@@ -47,10 +62,21 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
     setIsFlipped(!isFlipped);
   };
 
-  // Determine if this is from database or Google API
-  const isFromDatabase = restaurant?.from_database === true;
+  const handleRatingDataUpdate = (ratingData) => {
+    // Update the restaurant data with new rating information
+    if (onRestaurantDataUpdate) {
+      onRestaurantDataUpdate({
+        ...restaurant,
+        ...ratingData
+      });
+    }
+  };
+
+  try {
+    // Determine if this is from database or Google API
+    const isFromDatabase = restaurant?.from_database === true;
   
-  const name = isFromDatabase ? restaurant?.name : (isSearchResult ? restaurant?.name : restaurant?.Name);
+  const name = isFromDatabase ? (restaurant?.name || "Unknown Restaurant") : (isSearchResult ? (restaurant?.name || "Unknown Restaurant") : (restaurant?.Name || "Unknown Restaurant"));
   
   // Google rating (from search results or database)
   const googleRating = restaurant?.rating ?? null;
@@ -58,12 +84,12 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
   // Database rating (from our users)
   const databaseRating = restaurant?.AverageRating ?? null;
   
-  const googleRatingText = googleRating ? googleRating.toFixed(1) : "N/A";
-  const databaseRatingText = databaseRating ? databaseRating.toFixed(1) : "N/A";
+  const googleRatingText = googleRating && typeof googleRating === 'number' ? googleRating.toFixed(1) : "N/A";
+  const databaseRatingText = databaseRating && typeof databaseRating === 'number' ? databaseRating.toFixed(1) : "N/A";
   const totalRatings = restaurant?.TotalRatings ?? 0;
   
   const priceLevel = isFromDatabase ? (restaurant?.price_level || 0) : (isSearchResult ? (restaurant?.price_level || 0) : 0);
-  const address = isFromDatabase ? restaurant?.formatted_address : (isSearchResult ? restaurant?.formatted_address : restaurant?.Location);
+  const address = isFromDatabase ? (restaurant?.formatted_address || "Address not available") : (isSearchResult ? (restaurant?.formatted_address || "Address not available") : (restaurant?.Location || "Address not available"));
   const ratingMessage = isFromDatabase ? null : (isSearchResult ? null : restaurant?.RatingMessage);
 
   return (
@@ -135,21 +161,21 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
             <div className="flex-1 mt-4 flex flex-col gap-3 min-h-0">
                       {/* Cuisine tags */}
                       {isFromDatabase ? (
-                        restaurant?.types?.length > 0 && (
+                        restaurant?.types && Array.isArray(restaurant.types) && restaurant.types.length > 0 && (
                           <div className="cuisine-tags">
                             {restaurant.types.slice(0,3).map((type, idx) => (
                               <span key={idx} className="cuisine-tag">
-                                {type.replace(/_/g," ").toUpperCase()}
+                                {String(type || "").replace(/_/g," ").toUpperCase()}
                               </span>
                             ))}
                           </div>
                         )
                       ) : isSearchResult ? (
-                        restaurant?.types?.length > 0 && (
+                        restaurant?.types && Array.isArray(restaurant.types) && restaurant.types.length > 0 && (
                           <div className="cuisine-tags">
                             {restaurant.types.slice(0,3).map((type, idx) => (
                               <span key={idx} className="cuisine-tag">
-                                {type.replace(/_/g," ").toUpperCase()}
+                                {String(type || "").replace(/_/g," ").toUpperCase()}
                               </span>
                             ))}
                           </div>
@@ -157,7 +183,7 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
                       ) : (
                         restaurant?.["Cuisine Type"] && (
                           <div className="cuisine-tags">
-                            <span className="cuisine-tag">{restaurant["Cuisine Type"]}</span>
+                            <span className="cuisine-tag">{String(restaurant["Cuisine Type"] || "")}</span>
                           </div>
                         )
                       )}
@@ -170,18 +196,16 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
                 </div>
               )}
 
-              {/* Existing user's review on search results */}
-              {(isFromDatabase || isSearchResult) && restaurant?.user_review && (
-                <div className="glass p-3 rounded-xl">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-semibold text-slate-700">Your Review</span>
-                    <div className="star-row">
-                      {renderStars(restaurant?.user_rating)}
-                    </div>
+              {/* User's rating on front face */}
+              {(isFromDatabase || isSearchResult) && restaurant?.user_rating && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-blue-700">Your Rating:</span>
+                  <div className="star-row">
+                    {renderStars(restaurant?.user_rating)}
                   </div>
-                  <p className="text-sm text-slate-700/90 italic">{restaurant.user_review}</p>
                 </div>
               )}
+
             </div>
 
                     {/* Flip hint */}
@@ -212,13 +236,27 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
             {/* Rating form */}
             <div className="rating-scroll mt-2">
                       <RestaurantRating
-                        restaurantId={isFromDatabase ? restaurant?.place_id : (isSearchResult ? null : restaurant?.ResturantsId)}
+                        restaurantId={null}
                         restaurantName={name}
                         onRatingUpdate={onRatingUpdate}
                         isCompact={true}
-                        searchResultData={(isFromDatabase || isSearchResult) ? restaurant : null}
+                        searchResultData={restaurant}
+                        onRatingDataUpdate={handleRatingDataUpdate}
                       />
             </div>
+
+            {/* User's review display on back */}
+            {(isFromDatabase || isSearchResult) && restaurant?.user_review && String(restaurant.user_review).trim() && (
+              <div className="glass p-3 rounded-xl mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold text-slate-700">Your Review</span>
+                  <div className="star-row">
+                    {renderStars(restaurant?.user_rating)}
+                  </div>
+                </div>
+                <p className="text-sm text-slate-700/90 italic">{String(restaurant.user_review || "")}</p>
+              </div>
+            )}
 
             {/* Back hint */}
             <div className="hint">Click to go back</div>
@@ -227,6 +265,17 @@ function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate
       </div>
     </div>
   );
+  } catch (error) {
+    console.error("Error in RestaurantFlipCard:", error);
+    return (
+      <div className="flip-card-container fade-up">
+        <div className="glass p-4 rounded-xl border border-red-200/70">
+          <h4 className="text-red-700 font-semibold mb-2">Error Loading Restaurant</h4>
+          <p className="text-red-600 text-sm">Unable to display restaurant information</p>
+        </div>
+      </div>
+    );
+  }
 }
 
 export default RestaurantFlipCard;

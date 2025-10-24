@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isCompact = false, searchResultData = null }) {
+function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isCompact = false, searchResultData = null, onRatingDataUpdate = null }) {
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -9,6 +9,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
   const [restaurantRatings, setRestaurantRatings] = useState(null);
   const [showRatingForm, setShowRatingForm] = useState(false);
   const [error, setError] = useState("");
+
+  // Safety check - if no restaurant name, return null
+  if (!restaurantName) {
+    return null;
+  }
 
   // Get user's token from localStorage
   const getToken = () => {
@@ -25,22 +30,81 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
 
   // Load restaurant ratings and user's rating
   useEffect(() => {
-    if (restaurantId) {
-      loadRestaurantRatings();
-      loadMyRating();
+    // Always use search result data if available (which should be the case for all restaurants now)
+    if (searchResultData) {
+      // Debug: Log the search result data to see what we're working with
+      console.log("RestaurantRating useEffect - searchResultData:", searchResultData);
+      console.log("RestaurantRating useEffect - user_review:", searchResultData.user_review);
+      console.log("RestaurantRating useEffect - TotalRatings:", searchResultData.TotalRatings);
+      
+      setRestaurantRatings({
+        average_rating: searchResultData.AverageRating || null,
+        ratings: [],
+        restaurant_id: searchResultData.ResturantsId || null,
+        restaurant_name: restaurantName,
+        total_ratings: searchResultData.TotalRatings || 0,
+        user_rating_message: (() => {
+          const hasRatings = (searchResultData.TotalRatings || 0) > 0;
+          const hasUserReview = !!searchResultData.user_review;
+          const shouldShowMessage = !hasRatings && !hasUserReview;
+          const message = shouldShowMessage ? "Have not been rated by users" : null;
+          console.log("RestaurantRating useEffect - hasRatings:", hasRatings, "hasUserReview:", hasUserReview, "shouldShowMessage:", shouldShowMessage, "message:", message);
+          return message;
+        })()
+      });
+      
+      // Set user's rating if available
+      if (searchResultData.user_rating) {
+        setMyRating({
+          rating: searchResultData.user_rating,
+          review_text: searchResultData.user_review
+        });
+        setRating(searchResultData.user_rating);
+        setReviewText(searchResultData.user_review || "");
+      }
+    } else if (restaurantId) {
+      // Fallback to API calls only if no search data available (shouldn't happen in normal flow)
+      console.log("WARNING: Making API calls - this should not happen!");
+      // loadRestaurantRatings();
+      // loadMyRating();
+    } else {
+      // For cases without any data, set empty ratings
+      setRestaurantRatings({
+        average_rating: null,
+        ratings: [],
+        restaurant_id: null,
+        restaurant_name: restaurantName,
+        total_ratings: 0,
+        user_rating_message: searchResultData?.user_review ? null : "Have not been rated by users"
+      });
     }
-  }, [restaurantId]);
+  }, [restaurantId, searchResultData]);
 
   const loadRestaurantRatings = async () => {
+    // DISABLED: This should not be called anymore
+    return;
+    
     try {
       const response = await axios.get(`http://localhost:5002/restaurants/${restaurantId}/ratings`);
       setRestaurantRatings(response.data);
     } catch (err) {
       console.error("Failed to load restaurant ratings:", err);
+      // Set default empty ratings to prevent loading state
+      setRestaurantRatings({
+        average_rating: null,
+        ratings: [],
+        restaurant_id: restaurantId,
+        restaurant_name: restaurantName,
+        total_ratings: 0,
+        user_rating_message: searchResultData?.user_review ? null : "Have not been rated by users"
+      });
     }
   };
 
   const loadMyRating = async () => {
+    // DISABLED: This should not be called anymore
+    return;
+    
     const token = getToken();
     if (!token) return;
 
@@ -48,9 +112,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       const response = await axios.get(`http://localhost:5002/restaurants/${restaurantId}/my-rating`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setMyRating(response.data);
-      setRating(response.data.rating);
-      setReviewText(response.data.review_text || "");
+      if (response.data && typeof response.data === 'object') {
+        setMyRating(response.data);
+        setRating(response.data.rating || 0);
+        setReviewText(response.data.review_text || "");
+      }
     } catch (err) {
       if (err.response?.status !== 404) {
         console.error("Failed to load my rating:", err);
@@ -76,50 +142,26 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     setError("");
 
     try {
-      // If no restaurantId, we need to find the restaurant in our database first
-      if (!restaurantId && searchResultData) {
-        // This is a search result, try to find it in our database first
-        try {
-          console.log("Search result data:", searchResultData);
-          console.log("Place ID being searched:", searchResultData.place_id);
-          
-          // First, try to find the restaurant by place_id in our database
-          const searchResponse = await axios.get(`http://localhost:5002/restaurants/search?place_id=${searchResultData.place_id}`);
-          
-          if (searchResponse.data && searchResponse.data.length > 0) {
-            // Restaurant found in database, use its ID
-            restaurantId = searchResponse.data[0].ResturantsId;
-            console.log("Found restaurant in database with ID:", restaurantId);
-          } else {
-            // Restaurant not found, add it to database
-            console.log("Restaurant not found in database, adding it...");
-            const addResponse = await axios.post("http://localhost:5002/add-google-place", {
-              place_id: searchResultData.place_id
-            });
-            
-            if (addResponse.data && (addResponse.data.restaurant_id || addResponse.data.restaurant?.ResturantsId)) {
-              restaurantId = addResponse.data.restaurant_id || addResponse.data.restaurant.ResturantsId;
-              console.log("Added restaurant to database with ID:", restaurantId);
-            } else {
-              setError("Failed to add restaurant to database. Please try again.");
-              setIsSubmitting(false);
-              return;
-            }
-          }
-        } catch (searchError) {
-          console.error("Error searching/adding restaurant:", searchError);
-          setError("Failed to find or add restaurant to database. Please try again.");
+      // Use restaurant ID from search data if available
+      let targetRestaurantId = restaurantId;
+      
+      if (!targetRestaurantId && searchResultData) {
+        // Use the restaurant ID from search data
+        targetRestaurantId = searchResultData.ResturantsId;
+        
+        if (!targetRestaurantId) {
+          setError("Restaurant not found in database. Please try again.");
           setIsSubmitting(false);
           return;
         }
-      } else if (!restaurantId) {
+      } else if (!targetRestaurantId) {
         setError("Restaurant not found. Please try again.");
         setIsSubmitting(false);
         return;
       }
 
       const response = await axios.post(
-        `http://localhost:5002/restaurants/${restaurantId}/rate`,
+        `http://localhost:5002/restaurants/${targetRestaurantId}/rate`,
         {
           rating: rating,
           review_text: reviewText
@@ -129,17 +171,38 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
         }
       );
 
-      // Reload ratings after successful submission
-      await loadRestaurantRatings();
-      await loadMyRating();
+      // Update local state immediately to show the new rating
+      setMyRating({
+        rating: rating,
+        review_text: reviewText
+      });
+      
+      // Update restaurant ratings to reflect the new rating
+      setRestaurantRatings(prev => ({
+        ...prev,
+        average_rating: rating, // For now, show user's rating as average (will be updated on next search)
+        total_ratings: 1, // User just added the first rating
+        user_rating_message: "Rated by 1 user"
+      }));
       
       setShowRatingForm(false);
+      
+      // Update parent component with new rating data
+      if (onRatingDataUpdate) {
+        onRatingDataUpdate({
+          user_rating: rating,
+          user_review: reviewText,
+          AverageRating: rating,
+          TotalRatings: 1
+        });
+      }
+      
       if (onRatingUpdate) {
         onRatingUpdate();
       }
     } catch (err) {
-      setError("Failed to submit rating. Please try again.");
       console.error("Rating submission error:", err);
+      setError("Failed to submit rating. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -149,24 +212,52 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     const token = getToken();
     if (!token) return;
 
+    // Use restaurant ID from search data if available
+    let targetRestaurantId = restaurantId;
+    if (!targetRestaurantId && searchResultData) {
+      targetRestaurantId = searchResultData.ResturantsId;
+    }
+
+    if (!targetRestaurantId) {
+      setError("Restaurant not found. Please try again.");
+      return;
+    }
+
     try {
-      await axios.delete(`http://localhost:5002/restaurants/${restaurantId}/rate`, {
+      await axios.delete(`http://localhost:5002/restaurants/${targetRestaurantId}/rate`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      // Reload ratings after successful deletion
-      await loadRestaurantRatings();
+      // Update local state after successful deletion
       setMyRating(null);
       setRating(0);
       setReviewText("");
       setShowRatingForm(false);
       
+      // Update restaurant ratings to reflect the deletion
+      setRestaurantRatings(prev => ({
+        ...prev,
+        average_rating: null, // No ratings left
+        total_ratings: 0, // No ratings left
+        user_rating_message: "Have not been rated by users"
+      }));
+      
+      // Update parent component with deleted rating data
+      if (onRatingDataUpdate) {
+        onRatingDataUpdate({
+          user_rating: null,
+          user_review: null,
+          AverageRating: null,
+          TotalRatings: 0
+        });
+      }
+      
       if (onRatingUpdate) {
         onRatingUpdate();
       }
     } catch (err) {
-      setError("Failed to delete rating. Please try again.");
       console.error("Rating deletion error:", err);
+      setError("Failed to delete rating. Please try again.");
     }
   };
 
@@ -203,8 +294,8 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
           {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
         </h3>}
         
-        {/* Show message only if user hasn't rated yet */}
-        {!searchResultData.user_review && (
+        {/* Show message only if restaurant has no ratings at all */}
+        {!searchResultData.user_review && (searchResultData.TotalRatings || 0) === 0 && (
           <div className="text-center mb-4">
             <p className="text-sm text-gray-600 mb-2">
               Be the first to rate this restaurant!
@@ -303,9 +394,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
             <p className={`${isCompact ? 'text-sm' : 'text-lg'} font-bold text-slate-800`}>
               {restaurantRatings.average_rating ? `${restaurantRatings.average_rating.toFixed(1)}/5.0` : "No Rating"}
             </p>
-            <p className={`${isCompact ? 'text-xs' : 'text-sm'} text-slate-600 font-medium`}>
-              {restaurantRatings.user_rating_message}
-            </p>
+            {restaurantRatings.total_ratings === 0 && !searchResultData?.user_review && (
+              <p className={`${isCompact ? 'text-xs' : 'text-sm'} text-slate-600 font-medium`}>
+                {restaurantRatings.user_rating_message}
+              </p>
+            )}
           </div>
         </div>
       </div>

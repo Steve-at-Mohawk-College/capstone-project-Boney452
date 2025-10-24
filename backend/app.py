@@ -443,14 +443,40 @@ def search_restaurants():
         return jsonify({"error": str(e)}), 500
 
 # --- Google Places API Search ---
+@app.route("/test-save", methods=["POST"])
+def test_save_restaurant():
+    """Test endpoint to verify database saving works"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, google_types, google_price_level, google_photo_reference, created_at, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+            RETURNING id
+        """, ("Test Restaurant 2", "Test", "Test Location", "test", 4.5, "test_place_id_2", '["restaurant"]', 2, "test_photo"))
+        
+        restaurant_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({"success": True, "restaurant_id": restaurant_id})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/google-search", methods=["POST"])
 def search_google_places():
     # Check if user is authenticated (optional)
     user_data = None
+    print(f"=== SEARCH REQUEST DEBUG ===")
+    print(f"Authorization header: {request.headers.get('Authorization', 'None')}")
     try:
         user_data, _ = _require_auth(request)
-    except:
+        print(f"User authenticated: {user_data['username'] if user_data else 'None'}")
+    except Exception as e:
         # User not authenticated, that's fine for search
+        print(f"User not authenticated: {str(e)}")
         pass
     
     data = request.json
@@ -467,20 +493,23 @@ def search_google_places():
     
     try:
         # Search database for restaurants in this location
+        print(f"=== DATABASE SEARCH DEBUG ===")
+        print(f"Searching for: location='{location}', query='{query}'")
         cur.execute("""
-            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at,
+            SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at, r.google_types, r.google_price_level, r.google_photo_reference,
                    COALESCE(AVG(rr.rating), 0) as avg_rating,
                    COUNT(rr.id) as total_ratings
             FROM restaurants r
             LEFT JOIN restaurant_ratings rr ON r.id = rr.restaurant_id
             WHERE r.is_active = TRUE 
             AND (LOWER(r.location) LIKE LOWER(%s) OR LOWER(r.name) LIKE LOWER(%s))
-            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at
+            GROUP BY r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at, r.google_types, r.google_price_level, r.google_photo_reference
             ORDER BY r.created_at DESC
             LIMIT 20
         """, (f"%{location}%", f"%{query}%"))
         
         db_restaurants = cur.fetchall()
+        print(f"Found {len(db_restaurants)} restaurants in database")
         
         if db_restaurants:
             # We have restaurants in database, format and return them
@@ -495,6 +524,7 @@ def search_google_places():
                 user_review = None
                 user_rating = None
                 if user_data:
+                    print(f"Fetching user review for restaurant {restaurant[0]} and user {user_data['id']}")
                     cur.execute("""
                         SELECT rating, review_text 
                         FROM restaurant_ratings 
@@ -504,26 +534,41 @@ def search_google_places():
                     if user_review_data:
                         user_rating = user_review_data[0]
                         user_review = user_review_data[1]
-                
-                # Generate photo URL if we have place_id
-                photo_url = None
-                if restaurant[6]:  # google_place_id
-                    photo_url = f"https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference={restaurant[6]}&key={GOOGLE_MAPS_API_KEY}"
-                
-                # Convert cuisine type to types array format
-                cuisine_types = []
-                if restaurant[2]:  # cuisine_type
-                    cuisine_types.append(restaurant[2])
+                        print(f"Found user review: rating={user_rating}, review={user_review}")
+                    else:
+                        print(f"No user review found for restaurant {restaurant[0]}")
                 else:
-                    cuisine_types.append("restaurant")
+                    print("No user_data available for fetching reviews")
+                
+                # Generate photo URL if we have photo reference
+                photo_url = None
+                if len(restaurant) > 10 and restaurant[10]:  # google_photo_reference
+                    photo_url = get_photo_url(restaurant[10])
+                
+                # Use original Google API types and price level
+                google_types = []
+                google_price_level = 0
+                
+                # Parse stored Google types (column 8) and price level (column 9)
+                if len(restaurant) > 8 and restaurant[8]:  # google_types
+                    try:
+                        google_types = json.loads(restaurant[8])
+                    except:
+                        google_types = ["restaurant"]
+                else:
+                    google_types = ["restaurant"]
+                
+                if len(restaurant) > 9 and restaurant[9] is not None:  # google_price_level
+                    google_price_level = restaurant[9]
                 
                 formatted_places.append({
                     "place_id": restaurant[6] or f"db_{restaurant[0]}",
+                    "ResturantsId": restaurant[0],  # Add database ID
                     "name": restaurant[1],
                     "formatted_address": restaurant[3],
                     "rating": google_rating,
-                    "price_level": 0,  # We don't store price level in DB yet
-                    "types": cuisine_types,
+                    "price_level": google_price_level,
+                    "types": google_types,
                     "geometry": {"location": {"lat": 0, "lng": 0}},  # Placeholder
                     "photos": [],
                     "photo_url": photo_url,
@@ -619,17 +664,20 @@ def search_google_places():
                     photo_url = get_photo_url(photos[0].get("photo_reference"))
                 
                 formatted_place = {
-                    "place_id": place.get("place_id"),
-                    "name": place.get("name"),
-                    "formatted_address": place.get("formatted_address"),
-                    "rating": place.get("rating"),
-                    "price_level": place.get("price_level"),
-                    "types": place.get("types", []),
-                    "geometry": place.get("geometry"),
+                "place_id": place.get("place_id"),
+                "name": place.get("name"),
+                "formatted_address": place.get("formatted_address"),
+                "rating": place.get("rating"),
+                "price_level": place.get("price_level"),
+                "types": place.get("types", []),
+                "geometry": place.get("geometry"),
                     "photos": photos,
                     "photo_url": photo_url,
                     "user_review": None,
                     "user_rating": None,
+                    "AverageRating": None,
+                    "TotalRatings": 0,
+                    "ResturantsId": None,
                     "from_database": False
                 }
                 formatted_places.append(formatted_place)
@@ -641,31 +689,48 @@ def search_google_places():
                     address = place.get("formatted_address", "")
                     types = place.get("types", [])
                     
-                    # Determine cuisine type from Google types
+                    # Determine cuisine type from restaurant name and location
                     cuisine_type = "Other"
-                    for place_type in types:
-                        if place_type in ["restaurant", "food", "meal_takeaway", "meal_delivery"]:
-                            if "italian" in place_type or "pizza" in place_type:
-                                cuisine_type = "Italian"
-                            elif "chinese" in place_type or "asian" in place_type:
-                                cuisine_type = "Chinese"
-                            elif "mexican" in place_type:
-                                cuisine_type = "Mexican"
-                            elif "indian" in place_type:
-                                cuisine_type = "Indian"
-                            elif "japanese" in place_type or "sushi" in place_type:
-                                cuisine_type = "Japanese"
-                            elif "american" in place_type:
-                                cuisine_type = "American"
-                            elif "thai" in place_type:
-                                cuisine_type = "Thai"
-                            elif "french" in place_type:
-                                cuisine_type = "French"
-                            elif "korean" in place_type:
-                                cuisine_type = "Korean"
-                            elif "mediterranean" in place_type:
-                                cuisine_type = "Mediterranean"
-                            break
+                    name_lower = name.lower()
+                    address_lower = address.lower()
+                    
+                    # Indian cuisine detection
+                    indian_keywords = ["bhojanalaya", "dhaba", "hotel", "restaurant", "kathiyawadi", "gujarati", "punjabi", "south indian", "north indian"]
+                    if any(keyword in name_lower for keyword in indian_keywords) or "india" in address_lower:
+                        cuisine_type = "Indian"
+                    # Italian cuisine detection
+                    elif any(keyword in name_lower for keyword in ["pizza", "pasta", "italian", "trattoria", "ristorante", "gusto"]):
+                        cuisine_type = "Italian"
+                    # Chinese cuisine detection
+                    elif any(keyword in name_lower for keyword in ["chinese", "wok", "dragon", "panda", "bamboo"]):
+                        cuisine_type = "Chinese"
+                    # Mexican cuisine detection
+                    elif any(keyword in name_lower for keyword in ["mexican", "taco", "burrito", "margarita", "cantina"]):
+                        cuisine_type = "Mexican"
+                    # Japanese cuisine detection
+                    elif any(keyword in name_lower for keyword in ["sushi", "japanese", "ramen", "tempura", "sake"]):
+                        cuisine_type = "Japanese"
+                    # American cuisine detection
+                    elif any(keyword in name_lower for keyword in ["burger", "grill", "steak", "bbq", "american", "chop steakhouse", "carbon bar"]):
+                        cuisine_type = "American"
+                    # Thai cuisine detection
+                    elif any(keyword in name_lower for keyword in ["thai", "pad thai", "curry", "spicy"]):
+                        cuisine_type = "Thai"
+                    # French cuisine detection
+                    elif any(keyword in name_lower for keyword in ["french", "bistro", "cafe", "brasserie"]):
+                        cuisine_type = "French"
+                    # Korean cuisine detection
+                    elif any(keyword in name_lower for keyword in ["korean", "kimchi", "bbq", "korean"]):
+                        cuisine_type = "Korean"
+                    # Mediterranean cuisine detection
+                    elif any(keyword in name_lower for keyword in ["mediterranean", "greek", "lebanese", "middle eastern"]):
+                        cuisine_type = "Mediterranean"
+                    # Bar/Pub detection
+                    elif any(keyword in name_lower for keyword in ["bar", "pub", "tavern", "lounge"]):
+                        cuisine_type = "Bar & Grill"
+                    # Fine dining detection
+                    elif any(keyword in name_lower for keyword in ["canoe", "fine dining", "upscale"]):
+                        cuisine_type = "Fine Dining"
                     
                     # Create Google Maps link
                     geometry = place.get("geometry", {})
@@ -682,12 +747,19 @@ def search_google_places():
                     existing = cur.fetchone()
                     
                     if not existing:
-                        # Insert into database with Google rating
+                        # Get photo reference
+                        photo_reference = None
+                        photos = place.get("photos", [])
+                        if photos and len(photos) > 0:
+                            photo_reference = photos[0].get("photo_reference")
+                        
+                        # Insert into database with Google rating and original data
                         cur.execute("""
-                            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, created_at, is_active)
-                            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+                            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, google_types, google_price_level, google_photo_reference, created_at, is_active)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
                             RETURNING id
-                        """, (name, cuisine_type, address, google_maps_link, place.get('rating'), place.get('place_id')))
+                        """, (name, cuisine_type, address, google_maps_link, place.get('rating'), place.get('place_id'), 
+                              json.dumps(place.get('types', [])), place.get('price_level'), photo_reference))
                         
                         restaurant_id = cur.fetchone()[0]
                         saved_count += 1
@@ -701,6 +773,15 @@ def search_google_places():
                         WHERE restaurant_id = %s
                     """, (restaurant_id,))
                     db_rating_data = cur.fetchone()
+                    
+                    # Update the formatted_place with database information
+                    for fp in formatted_places:
+                        if fp["place_id"] == place.get("place_id"):
+                            fp["ResturantsId"] = restaurant_id
+                            fp["AverageRating"] = round(db_rating_data[0], 2) if db_rating_data[0] > 0 else None
+                            fp["TotalRatings"] = db_rating_data[1]
+                            fp["from_database"] = True  # Mark as from database since we found it
+                            break
                     
                     # Check if user has a review for this restaurant
                     if user_data:
@@ -718,29 +799,27 @@ def search_google_places():
                                     fp["user_rating"] = user_review_data[0]
                                     fp["user_review"] = user_review_data[1]
                                     break
-                    
-                    # Update the formatted_place with database rating information
-                    if db_rating_data:
-                        avg_rating = float(db_rating_data[0]) if db_rating_data[0] else 0
-                        total_ratings = db_rating_data[1]
-                        
-                        for fp in formatted_places:
-                            if fp["place_id"] == place.get("place_id"):
-                                fp["AverageRating"] = round(avg_rating, 2) if avg_rating > 0 else None
-                                fp["TotalRatings"] = total_ratings
-                                break
                         
                 except Exception as e:
-                    # If saving fails, continue with other restaurants
                     print(f"Failed to save restaurant {name}: {str(e)}")
+                    # Continue with other restaurants
                     continue
             
             # Commit all database changes
-            conn.commit()
+            try:
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
             
+        except Exception as e:
+            print(f"Error in restaurant processing: {str(e)}")
+            conn.rollback()
         finally:
-            cur.close()
-            conn.close()
+            try:
+                cur.close()
+                conn.close()
+            except:
+                pass
         
         return jsonify({
             "places": formatted_places,
@@ -856,12 +935,18 @@ def add_google_place():
         if existing:
             return jsonify({"error": "Restaurant already exists in database"}), 400
         
+        # Get photo reference
+        photo_reference = None
+        photos = result.get("photos", [])
+        if photos and len(photos) > 0:
+            photo_reference = photos[0].get("photo_reference")
+        
         # Insert into database with Google rating
         cur.execute("""
-            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, created_at, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
+            INSERT INTO restaurants (name, cuisine_type, location, google_api_links, google_rating, google_place_id, google_photo_reference, created_at, is_active)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, TRUE)
             RETURNING id
-        """, (name, cuisine_type, address, google_maps_link, result.get('rating'), place_id))
+        """, (name, cuisine_type, address, google_maps_link, result.get('rating'), place_id, photo_reference))
         
         restaurant_id = cur.fetchone()[0]
         conn.commit()
@@ -1252,7 +1337,11 @@ def get_my_rating(restaurant_id):
                 "updated_at": rating[3].isoformat() if rating[3] else None
             })
         else:
-            return jsonify({"message": "You have not rated this restaurant yet"}), 404
+            return jsonify({
+                "rating": None,
+                "review_text": None,
+                "message": "You have not rated this restaurant yet"
+            }), 200
             
     except Exception as e:
         return jsonify({"error": str(e)}), 500

@@ -35,6 +35,7 @@ def fix_database():
                 google_api_links TEXT,
                 google_rating DECIMAL(3,2),
                 google_place_id VARCHAR(255),
+                google_photo_reference VARCHAR(500),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 is_active BOOLEAN DEFAULT TRUE
             );

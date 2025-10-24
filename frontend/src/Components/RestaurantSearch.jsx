@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import RestaurantFlipCard from "./RestaurantFlipCard";
+import ErrorBoundary from "./ErrorBoundary";
 
 function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,12 +26,24 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
         { query: `restaurants in ${searchQuery}`, location: searchQuery },
         { headers }
       );
-      if (res.data.places) setSearchResults(res.data.places);
-    } catch {
+      if (res.data.places) {
+        setSearchResults(res.data.places);
+      }
+    } catch (err) {
       setError("Failed to search restaurants. Please try again.");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleRestaurantDataUpdate = (updatedRestaurant) => {
+    setSearchResults(prevResults => 
+      prevResults.map(restaurant => 
+        restaurant.place_id === updatedRestaurant.place_id 
+          ? updatedRestaurant 
+          : restaurant
+      )
+    );
   };
 
   return (
@@ -124,11 +137,14 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
                 key={restaurant.place_id || idx}
                 className="mx-auto max-w-[350px] w-full transform hover:scale-[1.02] transition-transform duration-300"
               >
-                <RestaurantFlipCard
-                  restaurant={restaurant}
-                  isSearchResult={true}
-                  onRatingUpdate={() => {}}
-                />
+                <ErrorBoundary>
+                  <RestaurantFlipCard
+                    restaurant={restaurant}
+                    isSearchResult={true}
+                    onRatingUpdate={() => {}}
+                    onRestaurantDataUpdate={handleRestaurantDataUpdate}
+                  />
+                </ErrorBoundary>
               </div>
             ))}
           </div>

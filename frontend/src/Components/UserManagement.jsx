@@ -14,8 +14,8 @@ function UserManagement({ onSignOut }) {
       const { data } = await axios.get("http://localhost:5002/users");
       if (data?.users) setUsers(data.users);
     } catch (err) {
-      setError("Failed to fetch users. Please try again.");
       console.error("Fetch users error:", err);
+      setError("Failed to fetch users. Please try again.");
     } finally {
       setIsLoading(false);
     }

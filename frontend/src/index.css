@@ -658,6 +658,60 @@ body::before{
   color: #6b7280;
 }
 
+/* Star rating colors */
+.text-yellow-400 {
+  color: #facc15;
+}
+
+.text-yellow-300 {
+  color: #fde047;
+}
+
+.text-gray-300 {
+  color: #d1d5db;
+}
+
+.fill-yellow-400 {
+  fill: #facc15;
+}
+
+.stroke-yellow-400 {
+  stroke: #facc15;
+}
+
+.fill-transparent {
+  fill: transparent;
+}
+
+.stroke-slate-300 {
+  stroke: #cbd5e1;
+}
+
+.stroke-emerald-600 {
+  stroke: #059669;
+}
+
+/* Star hover effects */
+.hover\:text-yellow-300:hover {
+  color: #fde047;
+}
+
+.hover\:scale-110:hover {
+  transform: scale(1.1);
+}
+
+.drop-shadow-lg {
+  filter: drop-shadow(0 10px 8px rgb(0 0 0 / 0.04)) drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.transform {
+  transform: translateZ(0);
+}
+
 /* Responsive adjustments */
 @media (max-width: 640px) {
   .card-content {

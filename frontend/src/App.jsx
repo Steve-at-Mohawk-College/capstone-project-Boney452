@@ -10,10 +10,10 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(!!localStorage.getItem("token")); // Show loading if we have a token to check
 
-  console.log("App component is rendering, currentView:", currentView, "token:", token);
 
-  // Fetch user info on component mount if token exists
+  // Fetch user info on component mount if token exists and redirect to search
   useEffect(() => {
     if (token && !userInfo) {
       const fetchUserInfo = async () => {
@@ -26,18 +26,36 @@ function App() {
           if (response.ok) {
             const data = await response.json();
             setUserInfo(data.user);
+            // If we have a valid token and user info, redirect to search page
+            setCurrentView("search");
+          } else {
+            // Token is invalid, clear it and stay on landing
+            localStorage.removeItem("token");
+            setToken("");
+            setCurrentView("landing");
           }
         } catch (error) {
-          console.error("Failed to fetch user info:", error);
+          // Error fetching user info, clear token and stay on landing
+          localStorage.removeItem("token");
+          setToken("");
+          setCurrentView("landing");
+        } finally {
+          setIsLoading(false);
         }
       };
       fetchUserInfo();
+    } else if (token && userInfo) {
+      // We already have both token and user info, redirect to search
+      setCurrentView("search");
+      setIsLoading(false);
+    } else if (!token) {
+      // No token, show landing page
+      setIsLoading(false);
     }
   }, [token, userInfo]);
 
   const handleLoginSuccess = async (newToken) => {
     setToken(newToken);
-    console.log("Login successful, token:", newToken);
     
     // Fetch user info to check if they're an admin
     try {
@@ -51,7 +69,6 @@ function App() {
         setUserInfo(data.user);
       }
     } catch (error) {
-      console.error("Failed to fetch user info:", error);
     }
     
     // Navigate to search page after login
@@ -79,6 +96,21 @@ function App() {
     const adminUsers = ["Boney123", "admin", "administrator"];
     return adminUsers.includes(userInfo.UserName);
   };
+
+  // Loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div className="auth-page">
+        <div className="w-full max-w-lg panel fade-up text-center">
+          <h1 className="header-xl mb-6">Flavor Quest</h1>
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-3 text-slate-600">Loading...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Landing Page
   if (currentView === "landing") {
