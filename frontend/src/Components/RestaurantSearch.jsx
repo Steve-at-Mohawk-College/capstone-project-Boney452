@@ -1,6 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import RestaurantFlipCard from "./RestaurantFlipCard";
+import { sanitizeInput } from "../utils/security";
 import ErrorBoundary from "./ErrorBoundary";
 
 function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
@@ -13,6 +14,14 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
+    
+    // Sanitize search query
+    const sanitizedQuery = sanitizeInput(searchQuery, 200);
+    if (!sanitizedQuery) {
+      setError("Please enter a valid search query");
+      return;
+    }
+    
     setIsLoading(true);
     setError("");
     setSearchResults([]);
@@ -23,7 +32,7 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.post(
         "http://localhost:5002/google-search",
-        { query: `restaurants in ${searchQuery}`, location: searchQuery },
+        { query: `restaurants in ${sanitizedQuery}`, location: sanitizedQuery },
         { headers }
       );
       if (res.data.places) {
@@ -87,7 +96,7 @@ function RestaurantSearch({ onSignOut, onManageUsers, isAdmin }) {
           id="searchQuery"
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => setSearchQuery(sanitizeInput(e.target.value, 200))}
           placeholder="Enter city name (e.g., Toronto, Paris, Tokyo)"
           className="input w-full"
           disabled={isLoading}

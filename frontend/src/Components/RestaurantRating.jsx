@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager } from "../utils/security";
 
 function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isCompact = false, searchResultData = null, onRatingDataUpdate = null }) {
   const [rating, setRating] = useState(0);
@@ -23,8 +24,9 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
   // Initialize rating and review from search result data
   useEffect(() => {
     if (searchResultData && searchResultData.user_review) {
-      setRating(searchResultData.user_rating || 0);
-      setReviewText(searchResultData.user_review || "");
+      const sanitizedData = sanitizeRestaurantData(searchResultData);
+      setRating(sanitizedData.user_rating || 0);
+      setReviewText(sanitizedData.user_review || "");
     }
   }, [searchResultData]);
 
@@ -133,10 +135,14 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       return;
     }
 
-    if (rating < 1 || rating > 5) {
-      setError("Please select a rating between 1 and 5");
+    // Validate rating
+    if (!validateRating(rating)) {
+      setError("Please select a valid rating between 1 and 5");
       return;
     }
+
+    // Sanitize review text
+    const sanitizedReviewText = sanitizeInput(reviewText, 1000);
 
     setIsSubmitting(true);
     setError("");
@@ -160,15 +166,20 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
         return;
       }
 
+      const csrfToken = await csrfManager.getToken();
+      const headers = {
+        ...csrfManager.getHeaders(),
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      };
+      
       const response = await axios.post(
         `http://localhost:5002/restaurants/${targetRestaurantId}/rate`,
         {
           rating: rating,
-          review_text: reviewText
+          review_text: sanitizedReviewText
         },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
+        { headers }
       );
 
       // Update local state immediately to show the new rating
@@ -327,7 +338,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                   <label className="block text-sm font-semibold text-slate-700 mb-2">Review (Optional):</label>
                   <textarea
                     value={reviewText}
-                    onChange={(e) => setReviewText(e.target.value)}
+                    onChange={(e) => setReviewText(sanitizeInput(e.target.value, 1000))}
                     onClick={(e) => e.stopPropagation()}
                     className="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300"
                     rows="3"
@@ -427,7 +438,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 <label className={`block ${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-slate-700 ${isCompact ? 'mb-1' : 'mb-2'}`}>Review (Optional):</label>
                 <textarea
                   value={reviewText}
-                  onChange={(e) => setReviewText(e.target.value)}
+                  onChange={(e) => setReviewText(sanitizeInput(e.target.value, 1000))}
                   onClick={(e) => e.stopPropagation()}
                   className={`w-full ${isCompact ? 'p-2' : 'p-3'} border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300`}
                   rows={isCompact ? "2" : "3"}

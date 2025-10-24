@@ -1,5 +1,6 @@
 import { useState } from "react";
 import RestaurantRating from "./RestaurantRating";
+import { sanitizeRestaurantData } from "../utils/security";
 
 /* Inline SVG icons (no emoji) */
 const Star = ({ filled = false, className = "" }) => (
@@ -50,6 +51,9 @@ const PriceBadge = ({ level = 0 }) => {
 
 function RestaurantFlipCard({ restaurant, isSearchResult = false, onRatingUpdate, onRestaurantDataUpdate }) {
   const [isFlipped, setIsFlipped] = useState(false);
+  
+  // Sanitize restaurant data
+  const sanitizedRestaurant = sanitizeRestaurantData(restaurant);
 
   // Safety check - if no restaurant data, return null
   if (!restaurant) {

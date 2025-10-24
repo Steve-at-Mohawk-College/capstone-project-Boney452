@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { sanitizeInput, validateEmail, validateUsername, validatePassword, csrfManager } from "../utils/security";
 
 const API_BASE = "http://localhost:5002";
 
@@ -15,20 +16,39 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
     setError("");
     setSuccess("");
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
+    // Validate inputs
+    if (!validateUsername(formData.username)) {
+      setError("Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens");
       setIsLoading(false);
       return;
     }
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters");
+
+    if (!validateEmail(formData.email)) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!validatePassword(formData.password)) {
+      setError("Password must be at least 8 characters long with uppercase, lowercase, and number");
+      setIsLoading(false);
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
       setIsLoading(false);
       return;
     }
 
     try {
       const { confirmPassword, ...payload } = formData;
-      const res = await axios.post(`${API_BASE}/signup`, payload);
+      const csrfToken = await csrfManager.getToken();
+      const headers = {
+        ...csrfManager.getHeaders(),
+        'Content-Type': 'application/json'
+      };
+      const res = await axios.post(`${API_BASE}/signup`, payload, { headers });
       setSuccess(res.data.message || "Account created successfully!");
       setFormData({ username: "", email: "", password: "", confirmPassword: "" });
       setTimeout(() => onSwitchToLogin(), 1200);
@@ -39,7 +59,11 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
     }
   };
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const sanitizedValue = sanitizeInput(value, 100);
+    setFormData({ ...formData, [name]: sanitizedValue });
+  };
 
   return (
     <div className="auth-page">

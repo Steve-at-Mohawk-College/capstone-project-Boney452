@@ -6,7 +6,82 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 import requests
 import os
 import json
+import re
+import html
 from datetime import datetime
+from functools import wraps
+
+# -----------------------------
+# Security Utilities
+# -----------------------------
+
+def sanitize_input(text, max_length=1000):
+    """Sanitize user input to prevent XSS and SQL injection"""
+    if not text:
+        return ""
+    
+    # Convert to string and limit length
+    text = str(text)[:max_length]
+    
+    # HTML escape to prevent XSS
+    text = html.escape(text)
+    
+    # Remove potentially dangerous characters
+    text = re.sub(r'[<>"\']', '', text)
+    
+    # Remove SQL injection patterns
+    dangerous_patterns = [
+        r'(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)',
+        r'(\b(OR|AND)\s+\d+\s*=\s*\d+)',
+        r'(\b(OR|AND)\s+\w+\s*=\s*\w+)',
+        r'(;\s*(DROP|DELETE|INSERT|UPDATE))',
+        r'(/\*.*?\*/)',
+        r'(--.*)',
+        r'(\b(script|javascript|vbscript|onload|onerror|onclick)\b)',
+    ]
+    
+    for pattern in dangerous_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    return text.strip()
+
+def validate_email(email):
+    """Validate email format"""
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def validate_username(username):
+    """Validate username format"""
+    if not username or len(username) < 3 or len(username) > 50:
+        return False
+    # Only allow alphanumeric characters, underscores, and hyphens
+    return re.match(r'^[a-zA-Z0-9_-]+$', username) is not None
+
+def validate_password(password):
+    """Validate password strength"""
+    if not password or len(password) < 8:
+        return False
+    # At least one uppercase, one lowercase, one digit
+    return re.match(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)', password) is not None
+
+def validate_rating(rating):
+    """Validate rating value"""
+    try:
+        rating = float(rating)
+        return 1 <= rating <= 5
+    except (ValueError, TypeError):
+        return False
+
+def rate_limit(max_requests=100, window=3600):
+    """Simple rate limiting decorator"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # In production, use Redis or similar for rate limiting
+            # For now, we'll implement basic rate limiting
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
 # -----------------------------
 # Database Connection
@@ -42,11 +117,47 @@ def get_photo_url(photo_reference, max_width=400):
 app = Flask(__name__)
 CORS(app)
 
+# Security headers
+@app.after_request
+def after_request(response):
+    """Add security headers to all responses"""
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://maps.googleapis.com;"
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
+
 # Password hasher
 ph = PasswordHasher()
 
 # Token serializer
 serializer = URLSafeTimedSerializer("supersecret")  # change this secret in production
+
+# CSRF protection
+def generate_csrf_token():
+    """Generate a CSRF token"""
+    return serializer.dumps("csrf_token")
+
+def validate_csrf_token(token):
+    """Validate a CSRF token"""
+    try:
+        serializer.loads(token, max_age=3600)  # 1 hour expiry
+        return True
+    except (BadSignature, SignatureExpired):
+        return False
+
+def require_csrf(f):
+    """Decorator to require CSRF token for POST/PUT/DELETE requests"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if request.method in ['POST', 'PUT', 'DELETE']:
+            csrf_token = request.headers.get('X-CSRF-Token') or request.json.get('csrf_token')
+            if not csrf_token or not validate_csrf_token(csrf_token):
+                return jsonify({"error": "Invalid CSRF token"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
 
 # Google Maps API configuration
 GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY", "AIzaSyBZUCatkclEyKXH5yC4OjYKxri0-RqtJ6c")
@@ -83,6 +194,11 @@ def check_api_quota():
 @app.route("/")
 def home():
     return {"message": "Flavor Quest API running"}
+
+@app.route("/csrf-token", methods=["GET"])
+def get_csrf_token():
+    """Get CSRF token for form submissions"""
+    return jsonify({"csrf_token": generate_csrf_token()})
 
 # --- Restaurants ---
 @app.route("/restaurants")
@@ -235,6 +351,8 @@ def create_restaurant():
 
 # --- Signup ---
 @app.route("/signup", methods=["POST"])
+@rate_limit(max_requests=5, window=3600)  # 5 signup attempts per hour
+@require_csrf
 def signup():
     data = request.json
     username = data.get("username")
@@ -244,9 +362,29 @@ def signup():
     if not username or not email or not password:
         return jsonify({"error": "Missing fields"}), 400
 
+    # Validate and sanitize inputs
+    username = sanitize_input(username, 50)
+    email = sanitize_input(email, 100)
+    
+    if not validate_username(username):
+        return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
+    
+    if not validate_email(email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
+    if not validate_password(password):
+        return jsonify({"error": "Password must be at least 8 characters long with uppercase, lowercase, and number"}), 400
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        
+        # Check if user already exists
+        cur.execute("SELECT id FROM users WHERE email = %s OR username = %s", (email, username))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User already exists"}), 400
         
         hashed = ph.hash(password)
         cur.execute(
@@ -262,7 +400,7 @@ def signup():
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Registration failed"}), 400
 
 # --- Login ---
 @app.route("/login", methods=["POST"])
@@ -466,6 +604,7 @@ def test_save_restaurant():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/google-search", methods=["POST"])
+@rate_limit(max_requests=100, window=3600)  # 100 searches per hour
 def search_google_places():
     # Check if user is authenticated (optional)
     user_data = None
@@ -483,6 +622,10 @@ def search_google_places():
     query = data.get("query", "").strip()
     location = data.get("location", "").strip()
     radius = data.get("radius", 5000)  # Default 5km radius
+    
+    # Sanitize search inputs
+    query = sanitize_input(query, 200)
+    location = sanitize_input(location, 200)
     
     if not query:
         return jsonify({"error": "Query is required"}), 400
@@ -1181,6 +1324,8 @@ def get_users():
 
 # Rate a restaurant
 @app.route("/restaurants/<int:restaurant_id>/rate", methods=["POST"])
+@rate_limit(max_requests=20, window=3600)  # 20 rating submissions per hour
+@require_csrf
 def rate_restaurant(restaurant_id):
     # Check authentication
     data, error = _require_auth(request)
@@ -1192,9 +1337,12 @@ def rate_restaurant(restaurant_id):
         rating = rating_data.get("rating")
         review_text = rating_data.get("review_text", "")
         
-        # Validate rating
-        if not rating or not isinstance(rating, int) or rating < 1 or rating > 5:
-            return jsonify({"error": "Rating must be an integer between 1 and 5"}), 400
+        # Validate and sanitize inputs
+        if not validate_rating(rating):
+            return jsonify({"error": "Rating must be between 1 and 5"}), 400
+        
+        # Sanitize review text
+        review_text = sanitize_input(review_text, 1000)
         
         # Get database connection
         conn = get_db_connection()

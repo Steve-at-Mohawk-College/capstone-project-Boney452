@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { sanitizeInput, validateEmail } from "../utils/security";
 
 const API_BASE = "http://localhost:5002";
 
@@ -12,6 +13,13 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+
+    // Validate email format
+    if (!validateEmail(formData.email)) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const res = await axios.post(`${API_BASE}/login`, formData);
@@ -26,7 +34,11 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
     }
   };
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const sanitizedValue = sanitizeInput(value, 100);
+    setFormData({ ...formData, [name]: sanitizedValue });
+  };
 
   return (
     <div className="auth-page">
