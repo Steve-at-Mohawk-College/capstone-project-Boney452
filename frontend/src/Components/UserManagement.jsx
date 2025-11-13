@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 
 function UserManagement({ onSignOut }) {
   const [users, setUsers] = useState([]);
@@ -11,7 +12,7 @@ function UserManagement({ onSignOut }) {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const { data } = await axios.get("http://localhost:5002/users");
+      const { data } = await axios.get(`${API_BASE_URL}/users`);
       if (data?.users) setUsers(data.users);
     } catch (err) {
       console.error("Fetch users error:", err);

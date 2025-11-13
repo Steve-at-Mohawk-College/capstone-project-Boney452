@@ -4,6 +4,7 @@ import Signup from "./Components/signup";
 import RestaurantSearch from "./Components/RestaurantSearch";
 import UserManagement from "./Components/UserManagement";
 import ChatSystem from "./Components/ChatSystem";
+import { API_BASE_URL } from "./config";
 
 function App() {
   const [currentView, setCurrentView] = useState("landing"); // "landing", "login", "signup", "search", "results", "chat"
@@ -19,7 +20,7 @@ function App() {
     if (token && !userInfo) {
       const fetchUserInfo = async () => {
         try {
-          const response = await fetch("http://localhost:5002/me", {
+          const response = await fetch(`${API_BASE_URL}/me`, {
             headers: {
               "Authorization": `Bearer ${token}`
             }
@@ -60,7 +61,7 @@ function App() {
     
     // Fetch user info to check if they're an admin
     try {
-      const response = await fetch("http://localhost:5002/me", {
+      const response = await fetch(`${API_BASE_URL}/me`, {
         headers: {
           "Authorization": `Bearer ${newToken}`
         }

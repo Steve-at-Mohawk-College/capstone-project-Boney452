@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { sanitizeInput, csrfManager } from '../utils/security';
-
-const API_BASE = 'http://localhost:5002';
+import { API_BASE_URL } from '../config';
 
 function ChatSystem({ userInfo, onSignOut }) {
   const [currentView, setCurrentView] = useState('groups'); // 'groups', 'chat', 'create-group', 'discover', 'edit-group'
@@ -26,8 +25,6 @@ function ChatSystem({ userInfo, onSignOut }) {
 
   useEffect(() => {
     if (userInfo) {
-      console.log('ChatSystem: userInfo received:', userInfo);
-      console.log('ChatSystem: userInfo.UserId:', userInfo.UserId);
       loadGroups();
     } else {
       setError('Please login to access the chat system.');
@@ -42,7 +39,7 @@ function ChatSystem({ userInfo, onSignOut }) {
         setError('No authentication token found. Please login again.');
         return;
       }
-      const response = await axios.get(`${API_BASE}/groups`, {
+      const response = await axios.get(`${API_BASE_URL}/groups`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGroups(response.data.groups);
@@ -62,7 +59,7 @@ function ChatSystem({ userInfo, onSignOut }) {
         setError('No authentication token found. Please login again.');
         return;
       }
-      const response = await axios.get(`${API_BASE}/groups/discover`, {
+      const response = await axios.get(`${API_BASE_URL}/groups/discover`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setDiscoverGroups(response.data.groups);
@@ -78,7 +75,7 @@ function ChatSystem({ userInfo, onSignOut }) {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE}/groups/${groupId}/messages`, {
+      const response = await axios.get(`${API_BASE_URL}/groups/${groupId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMessages(response.data.messages.reverse()); // Reverse to show oldest first
@@ -104,7 +101,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       
       const csrfToken = await csrfManager.getToken();
       
-      const response = await axios.post(`${API_BASE}/groups`, {
+      const response = await axios.post(`${API_BASE_URL}/groups`, {
         name: sanitizeInput(groupName, 255),
         description: sanitizeInput(groupDescription, 1000)
       }, {
@@ -136,7 +133,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       const token = localStorage.getItem('token');
       const csrfToken = await csrfManager.getToken();
       
-      await axios.post(`${API_BASE}/groups/${groupId}/join`, {}, {
+      await axios.post(`${API_BASE_URL}/groups/${groupId}/join`, {}, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -162,7 +159,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       const token = localStorage.getItem('token');
       const csrfToken = await csrfManager.getToken();
       
-      await axios.post(`${API_BASE}/groups/${groupId}/leave`, {}, {
+      await axios.post(`${API_BASE_URL}/groups/${groupId}/leave`, {}, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -213,7 +210,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       const token = localStorage.getItem('token');
       const csrfToken = await csrfManager.getToken();
       
-      await axios.put(`${API_BASE}/groups/${editingGroup.id}`, {
+      await axios.put(`${API_BASE_URL}/groups/${editingGroup.id}`, {
         name: sanitizeInput(editGroupName, 255),
         description: sanitizeInput(editGroupDescription, 1000)
       }, {
@@ -244,7 +241,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       const token = localStorage.getItem('token');
       const csrfToken = await csrfManager.getToken();
       
-      await axios.delete(`${API_BASE}/groups/${groupId}`, {
+      await axios.delete(`${API_BASE_URL}/groups/${groupId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'X-CSRF-Token': csrfToken
@@ -277,7 +274,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       const token = localStorage.getItem('token');
       const csrfToken = await csrfManager.getToken();
       
-      const response = await axios.post(`${API_BASE}/groups/${selectedGroup.id}/messages`, {
+      const response = await axios.post(`${API_BASE_URL}/groups/${selectedGroup.id}/messages`, {
         content: sanitizeInput(newMessage, 2000),
         message_type: 'text'
       }, {
@@ -670,14 +667,6 @@ function ChatSystem({ userInfo, onSignOut }) {
                     const showDate = index === 0 || 
                       formatDate(message.created_at) !== formatDate(messages[index - 1]?.created_at);
                     
-                    // Debug logging
-                    console.log('Message debug:', {
-                      message_user_id: message.user_id,
-                      userInfo_UserId: userInfo?.UserId,
-                      isOwn: message.user_id === userInfo?.UserId,
-                      message_username: message.username
-                    });
-                    
                     return (
                       <div key={message.id}>
                         {showDate && (
@@ -686,10 +675,6 @@ function ChatSystem({ userInfo, onSignOut }) {
                           </div>
                         )}
                         <div className={`message ${message.user_id === userInfo?.UserId ? 'own' : 'other'}`}>
-                          {/* Debug info - remove this later */}
-                          <div style={{fontSize: '10px', color: 'red'}}>
-                            Debug: message.user_id={message.user_id}, userInfo?.UserId={userInfo?.UserId}, match={message.user_id === userInfo?.UserId ? 'YES' : 'NO'}
-                          </div>
                           <div className="message-header">
                             <span className="message-username">{message.username}</span>
                             <span className="message-time">{formatTime(message.created_at)}</span>

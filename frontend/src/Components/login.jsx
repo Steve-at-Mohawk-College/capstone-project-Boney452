@@ -1,8 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { sanitizeInput, validateEmail } from "../utils/security";
-
-const API_BASE = "http://localhost:5002";
+import { API_BASE_URL } from "../config";
 
 const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -22,7 +21,7 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
     }
 
     try {
-      const res = await axios.post(`${API_BASE}/login`, formData);
+      const res = await axios.post(`${API_BASE_URL}/login`, formData);
       const token = res.data.token;
       localStorage.setItem("token", token);
       onLoginSuccess(token);

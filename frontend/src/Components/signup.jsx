@@ -1,8 +1,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { sanitizeInput, validateEmail, validateUsername, validatePassword, csrfManager } from "../utils/security";
-
-const API_BASE = "http://localhost:5002";
+import { API_BASE_URL } from "../config";
 
 const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
   const [formData, setFormData] = useState({ username: "", email: "", password: "", confirmPassword: "" });
@@ -48,7 +47,7 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
         ...csrfManager.getHeaders(),
         'Content-Type': 'application/json'
       };
-      const res = await axios.post(`${API_BASE}/signup`, payload, { headers });
+      const res = await axios.post(`${API_BASE_URL}/signup`, payload, { headers });
       setSuccess(res.data.message || "Account created successfully!");
       setFormData({ username: "", email: "", password: "", confirmPassword: "" });
       setTimeout(() => onSwitchToLogin(), 1200);

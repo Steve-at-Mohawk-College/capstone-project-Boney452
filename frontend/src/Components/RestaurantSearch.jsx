@@ -3,6 +3,7 @@ import axios from "axios";
 import RestaurantFlipCard from "./RestaurantFlipCard";
 import { sanitizeInput } from "../utils/security";
 import ErrorBoundary from "./ErrorBoundary";
+import { API_BASE_URL } from "../config";
 
 function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -31,7 +32,7 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
       const token = localStorage.getItem("token");
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.post(
-        "http://localhost:5002/google-search",
+        `${API_BASE_URL}/google-search`,
         { query: `restaurants in ${sanitizedQuery}`, location: sanitizedQuery },
         { headers }
       );

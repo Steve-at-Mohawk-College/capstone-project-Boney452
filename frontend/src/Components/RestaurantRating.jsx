@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager } from "../utils/security";
+import { API_BASE_URL } from "../config";
 
 function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isCompact = false, searchResultData = null, onRatingDataUpdate = null }) {
   const [rating, setRating] = useState(0);
@@ -87,7 +88,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     return;
     
     try {
-      const response = await axios.get(`http://localhost:5002/restaurants/${restaurantId}/ratings`);
+      const response = await axios.get(`${API_BASE_URL}/restaurants/${restaurantId}/ratings`);
       setRestaurantRatings(response.data);
     } catch (err) {
       console.error("Failed to load restaurant ratings:", err);
@@ -111,7 +112,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     if (!token) return;
 
     try {
-      const response = await axios.get(`http://localhost:5002/restaurants/${restaurantId}/my-rating`, {
+      const response = await axios.get(`${API_BASE_URL}/restaurants/${restaurantId}/my-rating`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (response.data && typeof response.data === 'object') {
@@ -174,7 +175,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       };
       
       const response = await axios.post(
-        `http://localhost:5002/restaurants/${targetRestaurantId}/rate`,
+        `${API_BASE_URL}/restaurants/${targetRestaurantId}/rate`,
         {
           rating: rating,
           review_text: sanitizedReviewText
@@ -235,7 +236,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     }
 
     try {
-      await axios.delete(`http://localhost:5002/restaurants/${targetRestaurantId}/rate`, {
+      await axios.delete(`${API_BASE_URL}/restaurants/${targetRestaurantId}/rate`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 

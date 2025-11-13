@@ -1,3 +1,5 @@
+import { API_BASE_URL } from "../config";
+
 // Security utilities for frontend XSS protection
 
 /**
@@ -215,7 +217,7 @@ class CSRFManager {
 
     // Fetch new token
     try {
-      const response = await fetch('http://localhost:5002/csrf-token');
+      const response = await fetch(`${API_BASE_URL}/csrf-token`);
       const data = await response.json();
       this.token = data.csrf_token;
       this.tokenExpiry = Date.now() + (50 * 60 * 1000); // 50 minutes (tokens expire in 1 hour)
