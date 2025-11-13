@@ -959,7 +959,17 @@ def search_google_places():
                         
                 except Exception as e:
                     print(f"Failed to save restaurant {name}: {str(e)}")
-                    # Continue with other restaurants
+                    try:
+                        conn.rollback()
+                    except Exception as rollback_error:
+                        print(f"Rollback failed: {rollback_error}")
+                        # If rollback fails, try to reopen the cursor
+                        try:
+                            cur.close()
+                        except Exception:
+                            pass
+                        cur = conn.cursor()
+                    # Continue with other restaurants after rollback
                     continue
             
             # Commit all database changes
