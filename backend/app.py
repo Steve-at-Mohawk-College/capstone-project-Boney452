@@ -84,16 +84,29 @@ def rate_limit(max_requests=100, window=3600):
     return decorator
 
 # -----------------------------
-# Database Connection
+# Database Configuration
 # -----------------------------
-def get_db_connection():
-    return psycopg2.connect(
-    dbname="flavorquest",
-    user="flavoruser",
-    password="securepass",
-    host="localhost",
-    port="5432"
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://flavoruser:securepass@localhost:5432/flavorquest"
 )
+
+def _build_connection_url():
+    """Ensure the connection string has sslmode when required."""
+    dsn = DATABASE_URL
+    if "render.com" in dsn and "sslmode=" not in dsn:
+        separator = "&" if "?" in dsn else "?"
+        dsn = f"{dsn}{separator}sslmode=require"
+    return dsn
+
+def get_db_connection():
+    """Establish a database connection using the configured URL."""
+    dsn = _build_connection_url()
+    try:
+        return psycopg2.connect(dsn)
+    except psycopg2.Error as e:
+        app.logger.error("Database connection error: %s", e)
+        raise
 
 def get_photo_url(photo_reference, max_width=400):
     """Generate a photo URL from Google Places photo reference"""
