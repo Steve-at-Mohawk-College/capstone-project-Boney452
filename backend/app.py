@@ -400,6 +400,7 @@ def signup():
         if 'conn' in locals():
             conn.rollback()
             conn.close()
+        app.logger.error("Signup error: %s", e)
         return jsonify({"error": "Registration failed"}), 400
 
 # --- Login ---
