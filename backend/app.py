@@ -89,7 +89,7 @@ def rate_limit(max_requests=100, window=3600):
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://flavoruser:securepass@localhost:5432/flavorquest"
-)
+).strip()
 
 def _build_connection_url():
     """Ensure the connection string has sslmode when required."""
