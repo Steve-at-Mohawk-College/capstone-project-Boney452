@@ -311,6 +311,7 @@ function App() {
           setCurrentView("landing");
           setUserInfo(null);
         }}
+        onBackToSearch={() => setCurrentView("search")}
       />
     );
   }

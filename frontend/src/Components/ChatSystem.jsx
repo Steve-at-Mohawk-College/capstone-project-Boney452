@@ -4,7 +4,7 @@ import { sanitizeInput, csrfManager } from '../utils/security';
 import { API_BASE_URL } from '../config';
 import { tokenStorage } from '../utils/tokenStorage';
 
-function ChatSystem({ userInfo, onSignOut }) {
+function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
   const [currentView, setCurrentView] = useState('groups'); // 'groups', 'chat', 'create-group', 'discover', 'edit-group'
   const [groups, setGroups] = useState([]);
   const [discoverGroups, setDiscoverGroups] = useState([]);
@@ -360,8 +360,18 @@ function ChatSystem({ userInfo, onSignOut }) {
     <div className="chat-system">
       {/* Header */}
       <div className="chat-header">
-        <div className="flex items-center justify-between">
-          <h1 className="header-xl">Flavor Quest Chat</h1>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {typeof onBackToSearch === 'function' && (
+              <button
+                onClick={onBackToSearch}
+                className="btn btn-ghost"
+              >
+                ← Back to Search
+              </button>
+            )}
+            <h1 className="header-xl">Flavor Quest Chat</h1>
+          </div>
           <button 
             onClick={onSignOut}
             className="btn btn-secondary"
