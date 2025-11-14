@@ -132,6 +132,30 @@ const headers = {
 
 ## 🔍 Security Testing
 
+### OWASP ZAP Security Testing
+
+Comprehensive security testing using OWASP ZAP (Zed Attack Proxy) is documented in **[OWASP_ZAP_TESTING.md](./OWASP_ZAP_TESTING.md)**. This guide includes:
+
+- Installation and configuration instructions
+- Step-by-step testing procedures
+- Vulnerability testing for OWASP Top 10
+- Result interpretation and remediation guidance
+- Best practices for security testing
+
+**Quick Start**: See [OWASP_ZAP_TESTING.md](./OWASP_ZAP_TESTING.md) for detailed instructions on conducting automated security scans.
+
+### Accessibility Testing
+
+Accessibility audits ensure the application is usable by people with disabilities. Comprehensive accessibility testing is documented in **[ACCESSIBILITY_TESTING.md](./ACCESSIBILITY_TESTING.md)**. This guide includes:
+
+- WCAG 2.1 compliance guidelines
+- Automated testing tools (Lighthouse, WAVE, axe DevTools)
+- Manual testing procedures (keyboard navigation, screen readers)
+- Common accessibility issues and fixes
+- Testing checklist and remediation guide
+
+**Quick Start**: See [ACCESSIBILITY_TESTING.md](./ACCESSIBILITY_TESTING.md) for detailed instructions on conducting accessibility audits.
+
 ### Manual Testing Checklist
 - [ ] XSS payloads in all input fields
 - [ ] SQL injection attempts in search/forms
@@ -141,9 +165,10 @@ const headers = {
 - [ ] Input validation edge cases
 
 ### Automated Security Tools
-- ESLint security rules
-- Python security linters
-- Dependency vulnerability scanning
+- **OWASP ZAP**: Automated vulnerability scanning (see [OWASP_ZAP_TESTING.md](./OWASP_ZAP_TESTING.md))
+- **ESLint security rules**: Frontend code security linting
+- **Python security linters**: Backend code security analysis
+- **Dependency vulnerability scanning**: npm audit, pip-audit
 
 ## 🚨 Security Incident Response
 

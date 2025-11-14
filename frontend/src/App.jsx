@@ -107,9 +107,10 @@ function App() {
       <div className="auth-page">
         <div className="w-full max-w-lg panel fade-up text-center">
           <h1 className="header-xl mb-6">Flavor Quest</h1>
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex items-center justify-center" role="status" aria-live="polite">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" aria-hidden="true"></div>
             <span className="ml-3 text-slate-600">Loading...</span>
+            <span className="sr-only">Loading application, please wait</span>
           </div>
         </div>
       </div>

@@ -130,13 +130,33 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
           </div>
 
           {error && (
-            <div className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm">{error}</div>
+            <div 
+              className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm"
+              role="alert"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {error}
+            </div>
           )}
           {success && (
-            <div className="glass p-3 rounded-lg border border-green-200/70 text-green-800 text-sm">{success}</div>
+            <div 
+              className="glass p-3 rounded-lg border border-green-200/70 text-green-800 text-sm"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {success}
+            </div>
           )}
 
-          <button type="submit" disabled={isLoading} className="btn btn-primary w-full">
+          <button 
+            type="submit" 
+            disabled={isLoading} 
+            className="btn btn-primary w-full"
+            aria-busy={isLoading}
+            aria-live="polite"
+          >
             {isLoading ? "Creating…" : "Create Account"}
           </button>
         </form>

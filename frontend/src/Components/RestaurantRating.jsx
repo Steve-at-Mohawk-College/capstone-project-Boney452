@@ -274,7 +274,12 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
 
   const renderStars = (rating, interactive = false, onStarClick = null, compact = false) => {
     return (
-      <div className="flex space-x-2 justify-center" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="flex space-x-2 justify-center" 
+        onClick={(e) => e.stopPropagation()}
+        role={interactive ? "radiogroup" : "img"}
+        aria-label={interactive ? "Rating selection" : `Rating: ${rating} out of 5 stars`}
+      >
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
@@ -289,7 +294,10 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 : "text-gray-300"
             } ${interactive ? "hover:text-yellow-300 hover:scale-110 cursor-pointer transform" : ""}`}
             disabled={!interactive}
+            aria-label={interactive ? `Rate ${star} star${star !== 1 ? 's' : ''}` : undefined}
+            aria-pressed={interactive && star <= rating ? "true" : "false"}
           >
+            <span className="sr-only">{star <= rating ? "Filled" : "Empty"} star</span>
             ★
           </button>
         ))}
@@ -335,19 +343,28 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">Review (Optional):</label>
+                  <label htmlFor="reviewText" className="block text-sm font-semibold text-slate-700 mb-2">Review (Optional):</label>
                   <textarea
+                    id="reviewText"
                     value={reviewText}
                     onChange={(e) => setReviewText(sanitizeInput(e.target.value, 1000))}
                     onClick={(e) => e.stopPropagation()}
                     className="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300"
                     rows="3"
                     placeholder="Share your experience..."
+                    aria-describedby={error ? "rating-error" : undefined}
+                    aria-invalid={error ? "true" : "false"}
                   />
                 </div>
                 
                 {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium">
+                  <div 
+                    id="rating-error"
+                    className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium"
+                    role="alert"
+                    aria-live="polite"
+                    aria-atomic="true"
+                  >
                     {error}
                   </div>
                 )}
@@ -358,6 +375,8 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                     disabled={isSubmitting}
                     onClick={(e) => e.stopPropagation()}
                     className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 flex-1 font-semibold shadow-lg transition-all duration-300 transform hover:scale-105"
+                    aria-busy={isSubmitting}
+                    aria-live="polite"
                   >
                     {isSubmitting ? "Submitting..." : "Submit Rating"}
                   </button>

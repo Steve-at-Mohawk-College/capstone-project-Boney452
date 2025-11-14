@@ -410,12 +410,22 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
 
       {/* Error/Success Messages */}
       {error && (
-        <div className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm mb-4">
+        <div 
+          className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm mb-4"
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {error}
         </div>
       )}
       {success && (
-        <div className="glass p-3 rounded-lg border border-green-200/70 text-green-800 text-sm mb-4">
+        <div 
+          className="glass p-3 rounded-lg border border-green-200/70 text-green-800 text-sm mb-4"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {success}
         </div>
       )}
@@ -559,7 +569,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
         {currentView === 'create-group' && (
           <div className="create-group-view">
             <h2 className="text-xl font-semibold mb-4">Create New Group</h2>
-            <form onSubmit={createGroup} className="create-group-form">
+            <form onSubmit={createGroup} className="create-group-form" aria-label="Create new group form">
               <div className="form-group">
                 <label htmlFor="groupName" className="form-label">Group Name</label>
                 <input
@@ -570,6 +580,8 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   className="input"
                   placeholder="Enter group name"
                   required
+                  aria-describedby={error ? "group-error" : undefined}
+                  aria-invalid={error ? "true" : "false"}
                 />
               </div>
               <div className="form-group">
@@ -581,12 +593,16 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   className="input"
                   rows="3"
                   placeholder="Describe your group (optional)"
+                  aria-describedby="group-description-hint"
                 />
+                <span id="group-description-hint" className="sr-only">Optional description for your group</span>
               </div>
               <button 
                 type="submit" 
                 className="btn btn-primary"
                 disabled={loading || !groupName.trim()}
+                aria-busy={loading}
+                aria-live="polite"
               >
                 {loading ? 'Creating...' : 'Create Group'}
               </button>
@@ -605,7 +621,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                 Cancel
               </button>
             </div>
-            <form onSubmit={submitEditGroup} className="edit-group-form">
+            <form onSubmit={submitEditGroup} className="edit-group-form" aria-label="Edit group form">
               <div className="form-group">
                 <label htmlFor="editGroupName" className="form-label">Group Name</label>
                 <input
@@ -616,6 +632,8 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   className="input"
                   placeholder="Enter group name"
                   required
+                  aria-describedby={error ? "edit-group-error" : undefined}
+                  aria-invalid={error ? "true" : "false"}
                 />
               </div>
               <div className="form-group">
@@ -627,13 +645,17 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   className="input"
                   rows="3"
                   placeholder="Describe your group (optional)"
+                  aria-describedby="edit-group-description-hint"
                 />
+                <span id="edit-group-description-hint" className="sr-only">Optional description for your group</span>
               </div>
               <div className="flex gap-3">
                 <button 
                   type="submit" 
                   className="btn btn-primary"
                   disabled={loading || !editGroupName.trim()}
+                  aria-busy={loading}
+                  aria-live="polite"
                 >
                   {loading ? 'Updating...' : 'Update Group'}
                 </button>
@@ -665,35 +687,42 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
               </div>
             </div>
 
-            <div className="messages-container">
+            <div className="messages-container" role="log" aria-live="polite" aria-label="Chat messages">
               {loading ? (
-                <div className="text-center py-8">Loading messages...</div>
+                <div className="text-center py-8" role="status" aria-live="polite">
+                  <span className="sr-only">Loading messages</span>
+                  Loading messages...
+                </div>
               ) : messages.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-gray-500" role="status">
                   <p>No messages yet. Start the conversation!</p>
                 </div>
               ) : (
-                <div className="messages-list">
+                <div className="messages-list" role="list">
                   {messages.map((message, index) => {
                     const showDate = index === 0 || 
                       formatDate(message.created_at) !== formatDate(messages[index - 1]?.created_at);
                     
                     return (
-                      <div key={message.id}>
+                      <div key={message.id} role="listitem">
                         {showDate && (
-                          <div className="message-date">
+                          <div className="message-date" role="heading" aria-level="3">
                             {formatDate(message.created_at)}
                           </div>
                         )}
-                        <div className={`message ${message.user_id === userInfo?.UserId ? 'own' : 'other'}`}>
+                        <div 
+                          className={`message ${message.user_id === userInfo?.UserId ? 'own' : 'other'}`}
+                          role="article"
+                          aria-label={`Message from ${message.username} at ${formatTime(message.created_at)}`}
+                        >
                           <div className="message-header">
-                            <span className="message-username">{message.username}</span>
-                            <span className="message-time">{formatTime(message.created_at)}</span>
+                            <span className="message-username" aria-label="Message author">{message.username}</span>
+                            <span className="message-time" aria-label="Message time">{formatTime(message.created_at)}</span>
                           </div>
                           <div className="message-content">
                             {message.content}
                             {message.is_edited && (
-                              <span className="message-edited">(edited)</span>
+                              <span className="message-edited" aria-label="This message was edited">(edited)</span>
                             )}
                           </div>
                         </div>
@@ -704,20 +733,28 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
               )}
             </div>
 
-            <form onSubmit={sendMessage} className="message-form">
+            <form onSubmit={sendMessage} className="message-form" aria-label="Send message form">
               <div className="message-input-container">
+                <label htmlFor="newMessage" className="sr-only">Type your message</label>
                 <input
                   type="text"
+                  id="newMessage"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   className="message-input"
                   placeholder="Type your message..."
                   disabled={loading}
+                  aria-describedby="message-hint"
+                  aria-label="Message input"
                 />
+                <span id="message-hint" className="sr-only">Type your message and press Enter or click Send</span>
                 <button 
                   type="submit" 
                   className="btn btn-primary"
                   disabled={loading || !newMessage.trim()}
+                  aria-busy={loading}
+                  aria-live="polite"
+                  aria-label="Send message"
                 >
                   Send
                 </button>

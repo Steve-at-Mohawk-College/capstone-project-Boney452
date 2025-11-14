@@ -60,6 +60,8 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
               onChange={handleChange}
               className="input"
               placeholder="you@example.com"
+              aria-describedby={error ? "login-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
             />
           </div>
 
@@ -74,16 +76,30 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
               onChange={handleChange}
               className="input"
               placeholder="••••••••"
+              aria-describedby={error ? "login-error" : undefined}
+              aria-invalid={error ? "true" : "false"}
             />
           </div>
 
           {error && (
-            <div className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm">
+            <div 
+              id="login-error"
+              className="glass p-3 rounded-lg border border-red-200/70 text-red-700 text-sm"
+              role="alert"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {error}
             </div>
           )}
 
-          <button type="submit" disabled={isLoading} className="btn btn-primary w-full">
+          <button 
+            type="submit" 
+            disabled={isLoading} 
+            className="btn btn-primary w-full"
+            aria-busy={isLoading}
+            aria-live="polite"
+          >
             {isLoading ? "Signing in…" : "Sign In"}
           </button>
         </form>

@@ -99,7 +99,9 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
       <form
         onSubmit={handleSearch}
         className="flex flex-col sm:flex-row items-center justify-center w-full max-w-2xl gap-3 fade-up"
+        aria-label="Restaurant search form"
       >
+        <label htmlFor="searchQuery" className="sr-only">Search for restaurants by city</label>
         <input
           id="searchQuery"
           type="text"
@@ -108,11 +110,16 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
           placeholder="Enter city name (e.g., Toronto, Paris, Tokyo)"
           className="input w-full"
           disabled={isLoading}
+          aria-describedby={error ? "search-error" : "search-hint"}
+          aria-invalid={error ? "true" : "false"}
         />
+        <span id="search-hint" className="sr-only">Enter a city name to search for restaurants</span>
         <button
           type="submit"
           disabled={isLoading || !searchQuery.trim()}
           className="btn btn-primary w-full sm:w-auto"
+          aria-busy={isLoading}
+          aria-live="polite"
         >
           {isLoading ? "Searching..." : "Search"}
         </button>
@@ -120,7 +127,13 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
 
       {/* 🔹 Error Message */}
       {error && (
-        <div className="glass p-3 rounded-lg border mt-4 border-red-200/70 text-red-700 text-sm fade-up">
+        <div 
+          id="search-error"
+          className="glass p-3 rounded-lg border mt-4 border-red-200/70 text-red-700 text-sm fade-up"
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {error}
         </div>
       )}
