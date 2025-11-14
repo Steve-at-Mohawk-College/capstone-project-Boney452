@@ -2,6 +2,7 @@ import { useState } from "react";
 import axios from "axios";
 import { sanitizeInput, validateEmail } from "../utils/security";
 import { API_BASE_URL } from "../config";
+import { tokenStorage } from "../utils/tokenStorage";
 
 const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
   const [formData, setFormData] = useState({ email: "", password: "" });
@@ -23,7 +24,7 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
     try {
       const res = await axios.post(`${API_BASE_URL}/login`, formData);
       const token = res.data.token;
-      localStorage.setItem("token", token);
+      tokenStorage.set(token);
       onLoginSuccess(token);
       setFormData({ email: "", password: "" });
     } catch (err) {

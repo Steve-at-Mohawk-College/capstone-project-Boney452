@@ -5,14 +5,15 @@ import RestaurantSearch from "./Components/RestaurantSearch";
 import UserManagement from "./Components/UserManagement";
 import ChatSystem from "./Components/ChatSystem";
 import { API_BASE_URL } from "./config";
+import { tokenStorage } from "./utils/tokenStorage";
 
 function App() {
   const [currentView, setCurrentView] = useState("landing"); // "landing", "login", "signup", "search", "results", "chat"
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [token, setToken] = useState(tokenStorage.get());
   const [userInfo, setUserInfo] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(!!localStorage.getItem("token")); // Show loading if we have a token to check
+  const [isLoading, setIsLoading] = useState(!!tokenStorage.get()); // Show loading if we have a token to check
 
 
   // Fetch user info on component mount if token exists and redirect to search
@@ -32,13 +33,13 @@ function App() {
             setCurrentView("search");
           } else {
             // Token is invalid, clear it and stay on landing
-            localStorage.removeItem("token");
+            tokenStorage.remove();
             setToken("");
             setCurrentView("landing");
           }
         } catch (error) {
           // Error fetching user info, clear token and stay on landing
-          localStorage.removeItem("token");
+          tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
         } finally {
@@ -57,6 +58,7 @@ function App() {
   }, [token, userInfo]);
 
   const handleLoginSuccess = async (newToken) => {
+    tokenStorage.set(newToken);
     setToken(newToken);
     
     // Fetch user info to check if they're an admin
@@ -175,7 +177,7 @@ function App() {
     return (
       <RestaurantSearch
         onSignOut={() => {
-          localStorage.removeItem("token");
+          tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
           setUserInfo(null);
@@ -219,7 +221,7 @@ function App() {
             )}
             <button 
               onClick={() => {
-                localStorage.removeItem("token");
+                tokenStorage.remove();
                 setToken("");
                 setCurrentView("landing");
                 setUserInfo(null);
@@ -245,7 +247,7 @@ function App() {
         <div className="w-full max-w-6xl mx-auto mt-8 fade-up">
           <RestaurantSearch 
             onSignOut={() => {
-              localStorage.removeItem("token");
+              tokenStorage.remove();
               setToken("");
               setCurrentView("landing");
               setUserInfo(null);
@@ -275,7 +277,7 @@ function App() {
           </div>
           <button 
             onClick={() => {
-              localStorage.removeItem("token");
+                tokenStorage.remove();
               setToken("");
               setCurrentView("landing");
               setUserInfo(null);
@@ -288,7 +290,7 @@ function App() {
 
         <UserManagement 
           onSignOut={() => {
-            localStorage.removeItem("token");
+            tokenStorage.remove();
             setToken("");
             setCurrentView("landing");
             setUserInfo(null);
@@ -304,7 +306,7 @@ function App() {
       <ChatSystem
         userInfo={userInfo}
         onSignOut={() => {
-          localStorage.removeItem("token");
+          tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
           setUserInfo(null);

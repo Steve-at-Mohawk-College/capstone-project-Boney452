@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { sanitizeInput, csrfManager } from '../utils/security';
 import { API_BASE_URL } from '../config';
+import { tokenStorage } from '../utils/tokenStorage';
 
 function ChatSystem({ userInfo, onSignOut }) {
   const [currentView, setCurrentView] = useState('groups'); // 'groups', 'chat', 'create-group', 'discover', 'edit-group'
@@ -34,7 +35,7 @@ function ChatSystem({ userInfo, onSignOut }) {
   const loadGroups = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       if (!token) {
         setError('No authentication token found. Please login again.');
         return;
@@ -54,7 +55,7 @@ function ChatSystem({ userInfo, onSignOut }) {
   const loadDiscoverGroups = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       if (!token) {
         setError('No authentication token found. Please login again.');
         return;
@@ -74,7 +75,7 @@ function ChatSystem({ userInfo, onSignOut }) {
   const loadMessages = async (groupId) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const response = await axios.get(`${API_BASE_URL}/groups/${groupId}/messages`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -93,7 +94,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       if (!token) {
         setError('No authentication token found. Please login again.');
         return;
@@ -130,7 +131,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const csrfToken = await csrfManager.getToken();
       
       await axios.post(`${API_BASE_URL}/groups/${groupId}/join`, {}, {
@@ -156,7 +157,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const csrfToken = await csrfManager.getToken();
       
       await axios.post(`${API_BASE_URL}/groups/${groupId}/leave`, {}, {
@@ -207,7 +208,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const csrfToken = await csrfManager.getToken();
       
       await axios.put(`${API_BASE_URL}/groups/${editingGroup.id}`, {
@@ -238,7 +239,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const csrfToken = await csrfManager.getToken();
       
       await axios.delete(`${API_BASE_URL}/groups/${groupId}`, {
@@ -271,7 +272,7 @@ function ChatSystem({ userInfo, onSignOut }) {
       setLoading(true);
       setError('');
       
-      const token = localStorage.getItem('token');
+      const token = tokenStorage.get();
       const csrfToken = await csrfManager.getToken();
       
       const response = await axios.post(`${API_BASE_URL}/groups/${selectedGroup.id}/messages`, {

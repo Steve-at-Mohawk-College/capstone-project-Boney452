@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager } from "../utils/security";
 import { API_BASE_URL } from "../config";
+import { tokenStorage } from "../utils/tokenStorage";
 
 function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isCompact = false, searchResultData = null, onRatingDataUpdate = null }) {
   const [rating, setRating] = useState(0);
@@ -17,10 +18,8 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     return null;
   }
 
-  // Get user's token from localStorage
-  const getToken = () => {
-    return localStorage.getItem("token");
-  };
+  // Get user's token from storage
+  const getToken = () => tokenStorage.get();
 
   // Initialize rating and review from search result data
   useEffect(() => {

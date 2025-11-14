@@ -4,6 +4,7 @@ import RestaurantFlipCard from "./RestaurantFlipCard";
 import { sanitizeInput } from "../utils/security";
 import ErrorBoundary from "./ErrorBoundary";
 import { API_BASE_URL } from "../config";
+import { tokenStorage } from "../utils/tokenStorage";
 
 function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -29,7 +30,7 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
     setHasSearched(true);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = tokenStorage.get();
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.post(
         `${API_BASE_URL}/google-search`,
