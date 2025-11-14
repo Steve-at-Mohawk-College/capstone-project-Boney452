@@ -819,15 +819,15 @@ def search_google_places():
                 photo_url = None
                 if photos and len(photos) > 0:
                     photo_url = get_photo_url(photos[0].get("photo_reference"))
-                
+
                 formatted_place = {
-                "place_id": place.get("place_id"),
-                "name": place.get("name"),
-                "formatted_address": place.get("formatted_address"),
-                "rating": place.get("rating"),
-                "price_level": place.get("price_level"),
-                "types": place.get("types", []),
-                "geometry": place.get("geometry"),
+                    "place_id": place.get("place_id"),
+                    "name": place.get("name"),
+                    "formatted_address": place.get("formatted_address"),
+                    "rating": place.get("rating"),
+                    "price_level": place.get("price_level"),
+                    "types": place.get("types", []),
+                    "geometry": place.get("geometry"),
                     "photos": photos,
                     "photo_url": photo_url,
                     "user_review": None,
@@ -838,6 +838,7 @@ def search_google_places():
                     "from_database": False
                 }
                 formatted_places.append(formatted_place)
+
                 
                 # Try to save to database
                 try:
@@ -909,6 +910,8 @@ def search_google_places():
                         photos = place.get("photos", [])
                         if photos and len(photos) > 0:
                             photo_reference = photos[0].get("photo_reference")
+                            if photo_reference and len(photo_reference) > 500:
+                                photo_reference = photo_reference[:500]
                         
                         # Insert into database with Google rating and original data
                         cur.execute("""
