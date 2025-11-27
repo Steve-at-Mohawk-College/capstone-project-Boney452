@@ -425,6 +425,8 @@ def signup():
     # Validate and sanitize inputs
     username = sanitize_input(username, 50)
     email = sanitize_input(email, 100)
+    # Convert email to lowercase for case-insensitive storage
+    email = email.lower().strip()
     
     if not validate_username(username):
         return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
@@ -439,8 +441,8 @@ def signup():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if user already exists
-        cur.execute("SELECT id FROM users WHERE email = %s OR username = %s", (email, username))
+        # Check if user already exists (case-insensitive email check)
+        cur.execute("SELECT id FROM users WHERE LOWER(email) = %s OR username = %s", (email, username))
         if cur.fetchone():
             cur.close()
             conn.close()
@@ -479,11 +481,15 @@ def login():
     email = data.get("email")
     password = data.get("password")
 
+    # Convert email to lowercase for case-insensitive login
+    if email:
+        email = email.lower().strip()
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT id, username, password_hash, COALESCE(is_admin, FALSE) FROM users WHERE email = %s", (email,))
+        cur.execute("SELECT id, username, password_hash, COALESCE(is_admin, FALSE) FROM users WHERE LOWER(email) = %s", (email,))
         user = cur.fetchone()
 
         if not user:
@@ -1494,6 +1500,8 @@ def admin_create_user():
     # Validate and sanitize inputs
     username = sanitize_input(username, 50)
     email = sanitize_input(email, 100)
+    # Convert email to lowercase for case-insensitive storage
+    email = email.lower().strip()
     
     if not validate_username(username):
         return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
@@ -1508,8 +1516,8 @@ def admin_create_user():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if user already exists
-        cur.execute("SELECT id FROM users WHERE email = %s OR username = %s", (email, username))
+        # Check if user already exists (case-insensitive email check)
+        cur.execute("SELECT id FROM users WHERE LOWER(email) = %s OR username = %s", (email, username))
         if cur.fetchone():
             cur.close()
             conn.close()
@@ -1559,6 +1567,8 @@ def admin_update_user(user_id):
     # Validate and sanitize inputs
     username = sanitize_input(username, 50)
     email = sanitize_input(email, 100)
+    # Convert email to lowercase for case-insensitive storage
+    email = email.lower().strip()
     
     if not validate_username(username):
         return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
@@ -1580,8 +1590,8 @@ def admin_update_user(user_id):
             conn.close()
             return jsonify({"error": "User not found"}), 404
         
-        # Check if email/username is already taken by another user
-        cur.execute("SELECT id FROM users WHERE (email = %s OR username = %s) AND id != %s", (email, username, user_id))
+        # Check if email/username is already taken by another user (case-insensitive email check)
+        cur.execute("SELECT id FROM users WHERE (LOWER(email) = %s OR username = %s) AND id != %s", (email, username, user_id))
         if cur.fetchone():
             cur.close()
             conn.close()

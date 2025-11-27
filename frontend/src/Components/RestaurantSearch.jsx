@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
 import RestaurantFlipCard from "./RestaurantFlipCard";
 import { sanitizeInput } from "../utils/security";
 import ErrorBoundary from "./ErrorBoundary";
 import { API_BASE_URL } from "../config";
 import { tokenStorage } from "../utils/tokenStorage";
+import { searchHistory } from "../utils/searchHistory";
 
 function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -12,6 +13,13 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
+
+  // Load recent searches on component mount
+  useEffect(() => {
+    const history = searchHistory.get();
+    setRecentSearches(history);
+  }, []);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -39,6 +47,44 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
       );
       if (res.data.places) {
         setSearchResults(res.data.places);
+        // Save to search history
+        searchHistory.add(sanitizedQuery);
+        // Update recent searches state
+        const updatedHistory = searchHistory.get();
+        setRecentSearches(updatedHistory);
+      }
+    } catch (err) {
+      setError("Failed to search restaurants. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRecentSearchClick = async (city) => {
+    setSearchQuery(city);
+    // Sanitize and perform search
+    const sanitizedQuery = sanitizeInput(city, 200);
+    if (!sanitizedQuery) return;
+    
+    setIsLoading(true);
+    setError("");
+    setSearchResults([]);
+    setHasSearched(true);
+
+    try {
+      const token = tokenStorage.get();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await axios.post(
+        `${API_BASE_URL}/google-search`,
+        { query: `restaurants in ${sanitizedQuery}`, location: sanitizedQuery },
+        { headers }
+      );
+      if (res.data.places) {
+        setSearchResults(res.data.places);
+        // Update search history (move to front if already exists)
+        searchHistory.add(sanitizedQuery);
+        const updatedHistory = searchHistory.get();
+        setRecentSearches(updatedHistory);
       }
     } catch (err) {
       setError("Failed to search restaurants. Please try again.");
@@ -138,23 +184,44 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
         </div>
       )}
 
-      {/* 🔹 Suggested Cities (shown before first search) */}
+      {/* 🔹 Recent Searches or Popular Cities (shown before first search) */}
       {!hasSearched && (
         <div className="mt-14 text-center fade-up">
-          <h3 className="text-lg font-semibold text-slate-700 mb-4">
-            Try these popular cities:
-          </h3>
-          <div className="flex flex-wrap justify-center gap-3">
-            {["New York", "Paris", "Tokyo", "London"].map((city) => (
-              <button
-                key={city}
-                onClick={() => setSearchQuery(city)}
-                className="btn btn-ghost text-slate-800 font-semibold shadow-sm hover:-translate-y-0.5 transition-transform"
-              >
-                {city}
-              </button>
-            ))}
-          </div>
+          {recentSearches.length > 0 ? (
+            <>
+              <h3 className="text-lg font-semibold text-slate-700 mb-4">
+                Your recent searches:
+              </h3>
+              <div className="flex flex-wrap justify-center gap-3">
+                {recentSearches.map((city) => (
+                  <button
+                    key={city}
+                    onClick={() => handleRecentSearchClick(city)}
+                    className="btn btn-primary text-white font-semibold shadow-sm hover:-translate-y-0.5 transition-transform"
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold text-slate-700 mb-4">
+                Try these popular cities:
+              </h3>
+              <div className="flex flex-wrap justify-center gap-3">
+                {["New York", "Paris", "Tokyo", "London"].map((city) => (
+                  <button
+                    key={city}
+                    onClick={() => setSearchQuery(city)}
+                    className="btn btn-ghost text-slate-800 font-semibold shadow-sm hover:-translate-y-0.5 transition-transform"
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

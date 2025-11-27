@@ -331,7 +331,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                   e.stopPropagation();
                   setShowRatingForm(true);
                 }}
-                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-indigo-700 w-full font-semibold shadow-lg transition-all duration-300 transform hover:scale-105"
+                className="btn btn-primary w-full"
               >
                 {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
               </button>
@@ -374,7 +374,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                     type="submit"
                     disabled={isSubmitting}
                     onClick={(e) => e.stopPropagation()}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 flex-1 font-semibold shadow-lg transition-all duration-300 transform hover:scale-105"
+                    className="btn btn-primary flex-1"
+                    style={{ 
+                      background: "linear-gradient(135deg, #10B981, #059669)",
+                      opacity: isSubmitting ? 0.6 : 1
+                    }}
                     aria-busy={isSubmitting}
                     aria-live="polite"
                   >
@@ -387,7 +391,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                       e.stopPropagation();
                       setShowRatingForm(false);
                     }}
-                    className="bg-gradient-to-r from-gray-500 to-slate-600 text-white px-6 py-3 rounded-lg hover:from-gray-600 hover:to-slate-700 font-semibold shadow-lg transition-all duration-300"
+                    className="btn btn-secondary"
                   >
                     Cancel
                   </button>
@@ -442,7 +446,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 e.stopPropagation();
                 setShowRatingForm(true);
               }}
-              className={`bg-gradient-to-r from-blue-500 to-indigo-600 text-white ${isCompact ? 'px-3 py-2 text-sm' : 'px-6 py-3'} rounded-lg hover:from-blue-600 hover:to-indigo-700 font-semibold shadow-lg transition-all duration-300 transform hover:scale-105`}
+              className={`btn btn-primary ${isCompact ? 'text-sm px-3 py-2' : ''}`}
             >
               {myRating ? "Update My Rating" : "Rate This Restaurant"}
             </button>
@@ -476,7 +480,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                   type="submit"
                   disabled={isSubmitting}
                   onClick={(e) => e.stopPropagation()}
-                  className={`bg-gradient-to-r from-green-500 to-emerald-600 text-white ${isCompact ? 'px-2 py-1 text-xs' : 'px-4 py-2'} rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 font-semibold shadow-lg transition-all duration-300 flex-1`}
+                  className={`btn btn-primary flex-1 ${isCompact ? 'text-xs px-2 py-1' : ''}`}
+                  style={{ 
+                    background: "linear-gradient(135deg, #10B981, #059669)",
+                    opacity: isSubmitting ? 0.6 : 1
+                  }}
                 >
                   {isSubmitting ? "Submitting..." : "Submit Rating"}
                 </button>
@@ -487,7 +495,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                     e.stopPropagation();
                     setShowRatingForm(false);
                   }}
-                  className={`bg-gradient-to-r from-gray-500 to-slate-600 text-white ${isCompact ? 'px-2 py-1 text-xs' : 'px-4 py-2'} rounded-lg hover:from-gray-600 hover:to-slate-700 font-semibold shadow-lg transition-all duration-300`}
+                  className={`btn btn-secondary ${isCompact ? 'text-xs px-2 py-1' : ''}`}
                 >
                   Cancel
                 </button>
@@ -499,7 +507,11 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                       e.stopPropagation();
                       handleDeleteRating();
                     }}
-                    className={`bg-gradient-to-r from-red-500 to-pink-600 text-white ${isCompact ? 'px-2 py-1 text-xs' : 'px-4 py-2'} rounded-lg hover:from-red-600 hover:to-pink-700 font-semibold shadow-lg transition-all duration-300`}
+                    className={`btn ${isCompact ? 'text-xs px-2 py-1' : ''}`}
+                    style={{
+                      background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                      color: "white"
+                    }}
                   >
                     Delete
                   </button>

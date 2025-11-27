@@ -22,7 +22,12 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
     }
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/login`, formData);
+      // Convert email to lowercase for case-insensitive login
+      const loginData = {
+        ...formData,
+        email: formData.email.toLowerCase().trim()
+      };
+      const res = await axios.post(`${API_BASE_URL}/login`, loginData);
       const token = res.data.token;
       tokenStorage.set(token);
       onLoginSuccess(token);
