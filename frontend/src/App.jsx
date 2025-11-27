@@ -21,11 +21,19 @@ function App() {
     if (token && !userInfo) {
       const fetchUserInfo = async () => {
         try {
+          // Add timeout to prevent infinite loading
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          
           const response = await fetch(`${API_BASE_URL}/me`, {
             headers: {
               "Authorization": `Bearer ${token}`
-            }
+            },
+            signal: controller.signal
           });
+          
+          clearTimeout(timeoutId);
+          
           if (response.ok) {
             const data = await response.json();
             setUserInfo(data.user);
@@ -38,7 +46,9 @@ function App() {
             setCurrentView("landing");
           }
         } catch (error) {
-          // Error fetching user info, clear token and stay on landing
+          // Error fetching user info (network error, timeout, etc.)
+          console.error("Error fetching user info:", error);
+          // Clear token and show landing page
           tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
@@ -263,38 +273,15 @@ function App() {
   // User Management Page (Admin only)
   if (currentView === "users" && isAdmin()) {
     return (
-      <div className="dashboard-page w-full">
-        {/* Top bar */}
-        <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setCurrentView("search")}
-              className="btn btn-ghost"
-            >
-              ← Back to Search
-            </button>
-            <h1 className="header-xl fade-up">User Management</h1>
-          </div>
-          <button 
-            onClick={() => {
-                tokenStorage.remove();
-              setToken("");
-              setCurrentView("landing");
-              setUserInfo(null);
-            }} 
-            className="btn btn-secondary"
-          >
-            Sign Out
-          </button>
-        </div>
-
+      <div className="w-full">
         <UserManagement 
           onSignOut={() => {
             tokenStorage.remove();
             setToken("");
             setCurrentView("landing");
             setUserInfo(null);
-          }} 
+          }}
+          onBackToSearch={() => setCurrentView("search")}
         />
       </div>
     );

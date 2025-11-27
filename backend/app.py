@@ -182,11 +182,18 @@ def ensure_admin_column():
         # Don't raise - allow app to start even if migration fails
         # The column might already exist or will be created manually
 
-# Run migration on app startup
-try:
-    ensure_admin_column()
-except Exception as e:
-    app.logger.warning(f"Could not run auto-migration on startup: {e}")
+# Run migration on app startup (non-blocking)
+import threading
+def run_migration_async():
+    """Run migration in background thread to not block app startup"""
+    try:
+        ensure_admin_column()
+    except Exception as e:
+        app.logger.warning(f"Could not run auto-migration on startup: {e}")
+
+# Start migration in background thread
+migration_thread = threading.Thread(target=run_migration_async, daemon=True)
+migration_thread.start()
 
 # CSRF protection
 def generate_csrf_token():
@@ -1443,7 +1450,7 @@ def get_users():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT id, username, email, created_at FROM users ORDER BY created_at DESC")
+        cur.execute("SELECT id, username, email, created_at, COALESCE(is_admin, FALSE) FROM users ORDER BY created_at DESC")
         users = cur.fetchall()
         user_list = []
         for user in users:
@@ -1451,13 +1458,200 @@ def get_users():
                 "UserId": user[0],
                 "UserName": user[1],
                 "UserEmail": user[2],
-                "CreatedAt": user[3].isoformat() if user[3] else None
+                "CreatedAt": user[3].isoformat() if user[3] else None,
+                "IsAdmin": user[4]
             })
         
         cur.close()
         conn.close()
         return jsonify({"users": user_list, "count": len(user_list)})
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# --- Admin User Management ---
+@app.route("/admin/users", methods=["POST"])
+@rate_limit(max_requests=20, window=3600)
+@require_csrf
+def admin_create_user():
+    """Create a new user (admin only)"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    user_id = data["id"]
+    if not _is_admin(user_id):
+        return jsonify({"error": "Admin privileges required"}), 403
+    
+    req_data = request.json
+    username = req_data.get("username")
+    email = req_data.get("email")
+    password = req_data.get("password")
+    is_admin = req_data.get("is_admin", False)
+    
+    if not username or not email or not password:
+        return jsonify({"error": "Missing required fields: username, email, password"}), 400
+    
+    # Validate and sanitize inputs
+    username = sanitize_input(username, 50)
+    email = sanitize_input(email, 100)
+    
+    if not validate_username(username):
+        return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
+    
+    if not validate_email(email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
+    if not validate_password(password):
+        return jsonify({"error": "Password must be at least 8 characters long with uppercase, lowercase, and number"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user already exists
+        cur.execute("SELECT id FROM users WHERE email = %s OR username = %s", (email, username))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User already exists"}), 400
+        
+        hashed = ph.hash(password)
+        
+        cur.execute(
+            "INSERT INTO users (username, email, password_hash, is_admin, created_at) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP) RETURNING id",
+            (username, email, hashed, bool(is_admin))
+        )
+        new_user_id = cur.fetchone()[0]
+        conn.commit()
+        
+        cur.close()
+        conn.close()
+        return jsonify({"message": "User created successfully", "user_id": new_user_id}), 201
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        app.logger.error(f"Admin create user error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/admin/users/<int:user_id>", methods=["PUT"])
+@rate_limit(max_requests=20, window=3600)
+@require_csrf
+def admin_update_user(user_id):
+    """Update a user (admin only)"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    admin_user_id = data["id"]
+    if not _is_admin(admin_user_id):
+        return jsonify({"error": "Admin privileges required"}), 403
+    
+    req_data = request.json
+    username = req_data.get("username")
+    email = req_data.get("email")
+    password = req_data.get("password")
+    is_admin = req_data.get("is_admin")
+    
+    if not username or not email:
+        return jsonify({"error": "Missing required fields: username, email"}), 400
+    
+    # Validate and sanitize inputs
+    username = sanitize_input(username, 50)
+    email = sanitize_input(email, 100)
+    
+    if not validate_username(username):
+        return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
+    
+    if not validate_email(email):
+        return jsonify({"error": "Invalid email format"}), 400
+    
+    if password and not validate_password(password):
+        return jsonify({"error": "Password must be at least 8 characters long with uppercase, lowercase, and number"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user exists
+        cur.execute("SELECT id FROM users WHERE id = %s", (user_id,))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User not found"}), 404
+        
+        # Check if email/username is already taken by another user
+        cur.execute("SELECT id FROM users WHERE (email = %s OR username = %s) AND id != %s", (email, username, user_id))
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Email or username already taken by another user"}), 400
+        
+        # Update user
+        if password:
+            hashed = ph.hash(password)
+            cur.execute(
+                "UPDATE users SET username = %s, email = %s, password_hash = %s, is_admin = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (username, email, hashed, bool(is_admin), user_id)
+            )
+        else:
+            cur.execute(
+                "UPDATE users SET username = %s, email = %s, is_admin = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (username, email, bool(is_admin), user_id)
+            )
+        
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({"message": "User updated successfully"}), 200
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        app.logger.error(f"Admin update user error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/admin/users/<int:user_id>", methods=["DELETE"])
+@rate_limit(max_requests=20, window=3600)
+@require_csrf
+def admin_delete_user(user_id):
+    """Delete a user (admin only)"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    admin_user_id = data["id"]
+    if not _is_admin(admin_user_id):
+        return jsonify({"error": "Admin privileges required"}), 403
+    
+    # Prevent admin from deleting themselves
+    if admin_user_id == user_id:
+        return jsonify({"error": "Cannot delete your own account"}), 400
+    
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user exists
+        cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User not found"}), 404
+        
+        # Delete user (hard delete)
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        
+        cur.close()
+        conn.close()
+        return jsonify({"message": f"User '{user[1]}' deleted successfully"}), 200
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        app.logger.error(f"Admin delete user error: {e}")
         return jsonify({"error": str(e)}), 500
 
 # --- Restaurant Rating System ---
