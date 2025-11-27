@@ -148,6 +148,46 @@ ph = PasswordHasher()
 # Token serializer
 serializer = URLSafeTimedSerializer("supersecret")  # change this secret in production
 
+# -----------------------------
+# Database Auto-Migration
+# -----------------------------
+def ensure_admin_column():
+    """Automatically add is_admin column if it doesn't exist (runs on app startup)"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if column already exists
+        cur.execute("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name='users' AND column_name='is_admin'
+        """)
+        
+        if not cur.fetchone():
+            # Column doesn't exist, add it
+            cur.execute("""
+                ALTER TABLE users 
+                ADD COLUMN is_admin BOOLEAN DEFAULT FALSE NOT NULL
+            """)
+            conn.commit()
+            app.logger.info("✅ Added 'is_admin' column to users table")
+        else:
+            app.logger.info("✅ 'is_admin' column already exists")
+        
+        cur.close()
+        conn.close()
+    except Exception as e:
+        app.logger.error(f"Error ensuring admin column: {e}")
+        # Don't raise - allow app to start even if migration fails
+        # The column might already exist or will be created manually
+
+# Run migration on app startup
+try:
+    ensure_admin_column()
+except Exception as e:
+    app.logger.warning(f"Could not run auto-migration on startup: {e}")
+
 # CSRF protection
 def generate_csrf_token():
     """Generate a CSRF token"""
@@ -400,9 +440,18 @@ def signup():
             return jsonify({"error": "User already exists"}), 400
         
         hashed = ph.hash(password)
+        
+        # Check if this is an admin signup (using special email pattern or environment variable)
+        # For security, you can set ADMIN_SIGNUP_EMAIL in environment to allow admin creation
+        admin_email_pattern = os.environ.get("ADMIN_SIGNUP_EMAIL", "")
+        is_admin_user = False
+        if admin_email_pattern and email == admin_email_pattern:
+            is_admin_user = True
+            app.logger.info(f"Creating admin user: {username}")
+        
         cur.execute(
-            "INSERT INTO users (username, email, password_hash, created_at) VALUES (%s, %s, %s, CURRENT_TIMESTAMP)",
-            (username, email, hashed)
+            "INSERT INTO users (username, email, password_hash, is_admin, created_at) VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)",
+            (username, email, hashed, is_admin_user)
         )
         conn.commit()
         
@@ -1336,6 +1385,56 @@ def batch_add_restaurants():
     finally:
         cur.close()
         conn.close()
+
+# --- Admin: Set user as admin (one-time setup endpoint) ---
+@app.route("/admin/set-admin", methods=["POST"])
+def set_user_admin():
+    """
+    Set a user as admin. 
+    This is a one-time setup endpoint. In production, you should protect this with additional security.
+    Usage: POST /admin/set-admin with {"username": "admin123"}
+    """
+    try:
+        data = request.json
+        username = data.get("username")
+        
+        if not username:
+            return jsonify({"error": "Username is required"}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if user exists
+        cur.execute("SELECT id, username, email FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
+        
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({"error": f"User '{username}' not found"}), 404
+        
+        # Set user as admin
+        cur.execute("UPDATE users SET is_admin = TRUE WHERE username = %s", (username,))
+        conn.commit()
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": f"User '{username}' has been set as admin",
+            "user": {
+                "id": user[0],
+                "username": user[1],
+                "email": user[2],
+                "is_admin": True
+            }
+        }), 200
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        return jsonify({"error": str(e)}), 500
 
 # --- Database Viewer (for development) ---
 @app.route("/users")
