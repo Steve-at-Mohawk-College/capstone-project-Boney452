@@ -427,7 +427,7 @@ def login():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        cur.execute("SELECT id, username, password_hash FROM users WHERE email = %s", (email,))
+        cur.execute("SELECT id, username, password_hash, COALESCE(is_admin, FALSE) FROM users WHERE email = %s", (email,))
         user = cur.fetchone()
 
         if not user:
@@ -440,7 +440,7 @@ def login():
         
         cur.close()
         conn.close()
-        return jsonify({"message": "Login successful", "token": token, "user": {"UserId": user[0], "UserName": user[1], "UserEmail": email}}), 200
+        return jsonify({"message": "Login successful", "token": token, "user": {"UserId": user[0], "UserName": user[1], "UserEmail": email, "IsAdmin": user[3]}}), 200
     except Exception as e:
         if 'conn' in locals():
             cur.close()
@@ -463,6 +463,19 @@ def _require_auth(req):
     except BadSignature:
         return None, (jsonify({"error": "Invalid token"}), 401)
 
+def _is_admin(user_id):
+    """Check if user is an admin"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COALESCE(is_admin, FALSE) FROM users WHERE id = %s", (user_id,))
+        result = cur.fetchone()
+        cur.close()
+        conn.close()
+        return result[0] if result else False
+    except Exception:
+        return False
+
 
 @app.route("/me")
 def me():
@@ -474,8 +487,8 @@ def me():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Get full user details
-        cur.execute("SELECT id, username, email, created_at FROM users WHERE id = %s", (data["id"],))
+        # Get full user details including admin status
+        cur.execute("SELECT id, username, email, created_at, COALESCE(is_admin, FALSE) FROM users WHERE id = %s", (data["id"],))
         user = cur.fetchone()
         
         cur.close()
@@ -487,7 +500,8 @@ def me():
                     "UserId": user[0],
                     "UserName": user[1], 
                     "UserEmail": user[2],
-                    "CreatedAt": user[3].isoformat() if user[3] else None
+                    "CreatedAt": user[3].isoformat() if user[3] else None,
+                    "IsAdmin": user[4]
                 }
             })
         else:
@@ -1521,7 +1535,7 @@ def get_my_rating(restaurant_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Delete user's rating for a restaurant
+# Delete user's rating for a restaurant (or any rating if admin)
 @app.route("/restaurants/<int:restaurant_id>/rate", methods=["DELETE"])
 def delete_restaurant_rating(restaurant_id):
     # Check authentication
@@ -1530,15 +1544,29 @@ def delete_restaurant_rating(restaurant_id):
         return error
     
     try:
+        user_id = data["id"]
+        is_platform_admin = _is_admin(user_id)
+        
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Delete user's rating
-        cur.execute("""
-            DELETE FROM restaurant_ratings
-            WHERE restaurant_id = %s AND user_id = %s
-            RETURNING id
-        """, (restaurant_id, data["id"]))
+        # Get rating_id from request body if admin is deleting someone else's rating
+        rating_id = request.json.get("rating_id") if request.json else None
+        
+        if is_platform_admin and rating_id:
+            # Admin can delete any rating by rating_id
+            cur.execute("""
+                DELETE FROM restaurant_ratings
+                WHERE id = %s AND restaurant_id = %s
+                RETURNING id
+            """, (rating_id, restaurant_id))
+        else:
+            # Regular user can only delete their own rating
+            cur.execute("""
+                DELETE FROM restaurant_ratings
+                WHERE restaurant_id = %s AND user_id = %s
+                RETURNING id
+            """, (restaurant_id, user_id))
         
         deleted_rating = cur.fetchone()
         
@@ -1563,7 +1591,7 @@ def delete_restaurant_rating(restaurant_id):
 @app.route("/groups", methods=["GET"])
 @rate_limit(max_requests=100, window=3600)
 def get_groups():
-    """Get all groups that the user is a member of"""
+    """Get all groups that the user is a member of (or all groups if admin)"""
     try:
         # Get user from token
         token = request.headers.get('Authorization')
@@ -1577,23 +1605,40 @@ def get_groups():
             return jsonify({"error": "Invalid or expired token"}), 401
         
         user_id = data["id"]
+        is_platform_admin = _is_admin(user_id)
         
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Get groups where user is a member
-        cur.execute("""
-            SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
-                   u.username as creator_name,
-                   COUNT(gm.user_id) as member_count,
-                   gm.role as user_role
-            FROM groups g
-            JOIN group_members gm ON g.id = gm.group_id
-            JOIN users u ON g.created_by = u.id
-            WHERE gm.user_id = %s AND gm.is_active = TRUE AND g.is_active = TRUE
-            GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username, gm.role
-            ORDER BY g.updated_at DESC
-        """, (user_id,))
+        if is_platform_admin:
+            # Admin can see all groups
+            cur.execute("""
+                SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+                       u.username as creator_name,
+                       COUNT(DISTINCT gm.user_id) FILTER (WHERE gm.is_active = TRUE) as member_count,
+                       COALESCE(gm_user.role, 'not_member') as user_role
+                FROM groups g
+                JOIN users u ON g.created_by = u.id
+                LEFT JOIN group_members gm ON g.id = gm.group_id
+                LEFT JOIN group_members gm_user ON g.id = gm_user.group_id AND gm_user.user_id = %s AND gm_user.is_active = TRUE
+                WHERE g.is_active = TRUE
+                GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username, gm_user.role
+                ORDER BY g.updated_at DESC
+            """, (user_id,))
+        else:
+            # Regular user sees only groups they're a member of
+            cur.execute("""
+                SELECT g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at,
+                       u.username as creator_name,
+                       COUNT(gm.user_id) as member_count,
+                       gm.role as user_role
+                FROM groups g
+                JOIN group_members gm ON g.id = gm.group_id
+                JOIN users u ON g.created_by = u.id
+                WHERE gm.user_id = %s AND gm.is_active = TRUE AND g.is_active = TRUE
+                GROUP BY g.id, g.name, g.description, g.created_by, g.created_at, g.updated_at, u.username, gm.role
+                ORDER BY g.updated_at DESC
+            """, (user_id,))
         
         groups = []
         for row in cur.fetchall():
@@ -2044,15 +2089,21 @@ def delete_group(group_id):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if user is admin of the group
-        cur.execute("""
-            SELECT role FROM group_members 
-            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
-        """, (group_id, user_id))
+        # Check if user is platform admin or group admin
+        is_platform_admin = _is_admin(user_id)
         
-        user_role = cur.fetchone()
-        if not user_role or user_role[0] != 'admin':
-            return jsonify({"error": "Only group admins can delete the group"}), 403
+        if not is_platform_admin:
+            # Check if user is admin of the group
+            cur.execute("""
+                SELECT role FROM group_members 
+                WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+            """, (group_id, user_id))
+            
+            user_role = cur.fetchone()
+            if not user_role or user_role[0] != 'admin':
+                cur.close()
+                conn.close()
+                return jsonify({"error": "Only group admins or platform admins can delete the group"}), 403
         
         # Soft delete group (set is_active = FALSE)
         cur.execute("""
@@ -2358,10 +2409,11 @@ def delete_message(message_id):
         if not message_result:
             return jsonify({"error": "Message not found"}), 404
         
-        # Check if user is the author or a group admin
+        # Check if user is platform admin, author, or group admin
+        is_platform_admin = _is_admin(user_id)
         is_author = message_result[1] == user_id
         
-        if not is_author:
+        if not is_platform_admin and not is_author:
             # Check if user is admin of the group
             cur.execute("""
                 SELECT role FROM group_members 
@@ -2370,7 +2422,7 @@ def delete_message(message_id):
             
             user_role = cur.fetchone()
             if not user_role or user_role[0] != 'admin':
-                return jsonify({"error": "You can only delete your own messages or be a group admin"}), 403
+                return jsonify({"error": "You can only delete your own messages, be a group admin, or be a platform admin"}), 403
         
         # Soft delete message
         cur.execute("""

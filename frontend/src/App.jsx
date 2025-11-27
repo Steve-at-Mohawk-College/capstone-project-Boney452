@@ -96,9 +96,8 @@ function App() {
   // Check if current user is an admin
   const isAdmin = () => {
     if (!userInfo) return false;
-    // Define admin users - you can modify this list
-    const adminUsers = ["Boney123", "admin", "administrator"];
-    return adminUsers.includes(userInfo.UserName);
+    // Check is_admin from database
+    return userInfo.IsAdmin === true;
   };
 
   // Loading screen while checking authentication

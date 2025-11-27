@@ -462,14 +462,16 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                       >
                         Open Chat
                       </button>
-                      {group.user_role === 'admin' ? (
+                      {group.user_role === 'admin' || userInfo?.IsAdmin ? (
                         <>
-                          <button 
-                            onClick={() => startEditGroup(group)}
-                            className="btn btn-secondary"
-                          >
-                            Edit
-                          </button>
+                          {group.user_role === 'admin' && (
+                            <button 
+                              onClick={() => startEditGroup(group)}
+                              className="btn btn-secondary"
+                            >
+                              Edit
+                            </button>
+                          )}
                           <button 
                             onClick={() => {
                               if (window.confirm(`Are you sure you want to delete the group "${group.name}"? This action cannot be undone.`)) {
@@ -529,14 +531,16 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                           >
                             Open Chat
                           </button>
-                          {group.user_role === 'admin' && (
+                          {(group.user_role === 'admin' || userInfo?.IsAdmin) && (
                             <>
-                              <button 
-                                onClick={() => startEditGroup(group)}
-                                className="btn btn-secondary"
-                              >
-                                Edit
-                              </button>
+                              {group.user_role === 'admin' && (
+                                <button 
+                                  onClick={() => startEditGroup(group)}
+                                  className="btn btn-secondary"
+                                >
+                                  Edit
+                                </button>
+                              )}
                               <button 
                                 onClick={() => {
                                   if (window.confirm(`Are you sure you want to delete the group "${group.name}"? This action cannot be undone.`)) {
@@ -551,12 +555,26 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                           )}
                         </>
                       ) : (
-                        <button 
-                          onClick={() => joinGroup(group.id)}
-                          className="btn btn-primary"
-                        >
-                          Join Group
-                        </button>
+                        <>
+                          <button 
+                            onClick={() => joinGroup(group.id)}
+                            className="btn btn-primary"
+                          >
+                            Join Group
+                          </button>
+                          {userInfo?.IsAdmin && (
+                            <button 
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete the group "${group.name}"? This action cannot be undone.`)) {
+                                  deleteGroup(group.id);
+                                }
+                              }}
+                              className="btn btn-secondary text-red-600"
+                            >
+                              Delete (Admin)
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
