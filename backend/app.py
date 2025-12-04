@@ -19,11 +19,11 @@ from functools import wraps
 INAPPROPRIATE_WORDS = [
     # Spam and fraud related
     'spam', 'scam', 'fake', 'fraud', 'hate', 'violence',
-    # Adult/profanity words
-    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'damn', 'damned',
-    'ass', 'asshole', 'bitch', 'bastard', 'hell', 'crap', 'piss',
+    # Adult/profanity words (removed 'hell' and 'damn' as they appear in normal words like 'hello' and 'damned')
+    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'crap', 'piss',
+    'ass', 'asshole', 'bitch', 'bastard',
     'dick', 'cock', 'pussy', 'whore', 'slut', 'cunt', 'motherfucker',
-    'bullshit', 'goddamn', 'goddamned', 'bloody', 'bugger', 'wanker',
+    'bullshit', 'goddamn', 'goddamned', 'bugger', 'wanker',
     'prick', 'twat', 'tosser', 'bellend', 'arse', 'arsehole',
     # Additional variations
     'f*ck', 'f**k', 's**t', 'sh*t', 'a**', 'a**hole', 'b****', 'b***h',
@@ -36,9 +36,13 @@ def contains_inappropriate_content(text):
         return False
     
     text_lower = text.lower()
-    # Check for inappropriate words
+    # Split text into words (handle punctuation)
+    import re
+    words = re.findall(r'\b\w+\b', text_lower)
+    
+    # Check for inappropriate words (whole word match only)
     for word in INAPPROPRIATE_WORDS:
-        if word in text_lower:
+        if word.lower() in words:
             return True
     
     # Check for excessive capitalization (potential spam)

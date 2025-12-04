@@ -129,9 +129,9 @@ export function containsInappropriateContent(text) {
   const inappropriateWords = [
     // Spam and fraud related
     'spam', 'scam', 'fake', 'fraud', 'hate', 'violence',
-    // Adult/profanity words
-    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'damn', 'damned',
-    'ass', 'asshole', 'bitch', 'bastard', 'hell', 'crap', 'piss',
+    // Adult/profanity words (removed 'hell' and 'damn' as they can be in normal words like 'hello')
+    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'crap', 'piss',
+    'ass', 'asshole', 'bitch', 'bastard', 'crap',
     'dick', 'cock', 'pussy', 'whore', 'slut', 'cunt', 'motherfucker',
     'bullshit', 'goddamn', 'goddamned', 'bloody', 'bugger', 'wanker',
     'prick', 'twat', 'tosser', 'bellend', 'arse', 'arsehole',
@@ -142,9 +142,12 @@ export function containsInappropriateContent(text) {
 
   const textLower = text.toLowerCase();
   
-  // Check for inappropriate words
+  // Split text into words (handle punctuation) - whole word matching only
+  const words = textLower.match(/\b\w+\b/g) || [];
+  
+  // Check for inappropriate words (whole word match only)
   for (const word of inappropriateWords) {
-    if (textLower.includes(word)) {
+    if (words.includes(word.toLowerCase())) {
       return true;
     }
   }
