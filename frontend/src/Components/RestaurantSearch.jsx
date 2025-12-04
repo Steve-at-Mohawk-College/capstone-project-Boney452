@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../config";
 import { tokenStorage } from "../utils/tokenStorage";
 import { searchHistory } from "../utils/searchHistory";
 
-function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
+function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -15,11 +15,13 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
   const [hasSearched, setHasSearched] = useState(false);
   const [recentSearches, setRecentSearches] = useState([]);
 
-  // Load recent searches on component mount
+  // Load recent searches on component mount (user-specific)
   useEffect(() => {
-    const history = searchHistory.get();
-    setRecentSearches(history);
-  }, []);
+    if (userInfo?.UserId) {
+      const history = searchHistory.get(userInfo.UserId);
+      setRecentSearches(history);
+    }
+  }, [userInfo]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -47,11 +49,13 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
       );
       if (res.data.places) {
         setSearchResults(res.data.places);
-        // Save to search history
-        searchHistory.add(sanitizedQuery);
-        // Update recent searches state
-        const updatedHistory = searchHistory.get();
-        setRecentSearches(updatedHistory);
+        // Save to search history (user-specific)
+        if (userInfo?.UserId) {
+          searchHistory.add(sanitizedQuery, userInfo.UserId);
+          // Update recent searches state
+          const updatedHistory = searchHistory.get(userInfo.UserId);
+          setRecentSearches(updatedHistory);
+        }
       }
     } catch (err) {
       setError("Failed to search restaurants. Please try again.");
@@ -81,10 +85,12 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
       );
       if (res.data.places) {
         setSearchResults(res.data.places);
-        // Update search history (move to front if already exists)
-        searchHistory.add(sanitizedQuery);
-        const updatedHistory = searchHistory.get();
-        setRecentSearches(updatedHistory);
+        // Update search history (move to front if already exists, user-specific)
+        if (userInfo?.UserId) {
+          searchHistory.add(sanitizedQuery, userInfo.UserId);
+          const updatedHistory = searchHistory.get(userInfo.UserId);
+          setRecentSearches(updatedHistory);
+        }
       }
     } catch (err) {
       setError("Failed to search restaurants. Please try again.");
@@ -152,7 +158,7 @@ function RestaurantSearch({ onSignOut, onManageUsers, onOpenChat, isAdmin }) {
           id="searchQuery"
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(sanitizeInput(e.target.value, 200))}
+          onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Enter city name (e.g., Toronto, Paris, Tokyo)"
           className="input w-full"
           disabled={isLoading}

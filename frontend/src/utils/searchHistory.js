@@ -1,4 +1,4 @@
-const SEARCH_HISTORY_KEY = "flavor_quest_search_history";
+const SEARCH_HISTORY_KEY_PREFIX = "flavor_quest_search_history";
 const MAX_HISTORY = 3;
 
 const safeLocalStorage = () => {
@@ -10,17 +10,32 @@ const safeLocalStorage = () => {
   }
 };
 
+/**
+ * Get the storage key for a specific user
+ * @param {number|string} userId - User ID
+ * @returns {string} Storage key
+ */
+const getStorageKey = (userId) => {
+  if (!userId) {
+    // Fallback to generic key if no user ID (for backward compatibility)
+    return SEARCH_HISTORY_KEY_PREFIX;
+  }
+  return `${SEARCH_HISTORY_KEY_PREFIX}_user_${userId}`;
+};
+
 export const searchHistory = {
   /**
-   * Get the last N searches (up to MAX_HISTORY)
+   * Get the last N searches (up to MAX_HISTORY) for a specific user
+   * @param {number|string} userId - User ID (optional, for backward compatibility)
    * @returns {string[]} Array of city names
    */
-  get() {
+  get(userId = null) {
     const storage = safeLocalStorage();
     if (!storage) return [];
     
     try {
-      const history = storage.getItem(SEARCH_HISTORY_KEY);
+      const key = getStorageKey(userId);
+      const history = storage.getItem(key);
       if (!history) return [];
       
       const parsed = JSON.parse(history);
@@ -31,17 +46,19 @@ export const searchHistory = {
   },
 
   /**
-   * Add a new search to history (keeps only last MAX_HISTORY)
+   * Add a new search to history (keeps only last MAX_HISTORY) for a specific user
    * @param {string} city - City name to add
+   * @param {number|string} userId - User ID (optional, for backward compatibility)
    */
-  add(city) {
+  add(city, userId = null) {
     if (!city || !city.trim()) return;
     
     const storage = safeLocalStorage();
     if (!storage) return;
     
     try {
-      const currentHistory = this.get();
+      const key = getStorageKey(userId);
+      const currentHistory = this.get(userId);
       const cityTrimmed = city.trim();
       
       // Remove if already exists (to avoid duplicates)
@@ -50,24 +67,28 @@ export const searchHistory = {
       // Add to front
       const newHistory = [cityTrimmed, ...filtered].slice(0, MAX_HISTORY);
       
-      storage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(newHistory));
+      storage.setItem(key, JSON.stringify(newHistory));
     } catch (error) {
       console.error("Failed to save search history:", error);
     }
   },
 
   /**
-   * Clear all search history
+   * Clear all search history for a specific user
+   * @param {number|string} userId - User ID (optional, for backward compatibility)
    */
-  clear() {
+  clear(userId = null) {
     const storage = safeLocalStorage();
     if (!storage) return;
     
     try {
-      storage.removeItem(SEARCH_HISTORY_KEY);
+      const key = getStorageKey(userId);
+      storage.removeItem(key);
     } catch (error) {
       console.error("Failed to clear search history:", error);
     }
   }
 };
+
+
 

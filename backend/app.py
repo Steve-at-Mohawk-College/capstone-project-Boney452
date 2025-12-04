@@ -182,12 +182,104 @@ def ensure_admin_column():
         # Don't raise - allow app to start even if migration fails
         # The column might already exist or will be created manually
 
+def ensure_chat_tables():
+    """Automatically create chat system tables if they don't exist (runs on app startup)"""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if groups table exists
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name='groups'
+        """)
+        
+        if not cur.fetchone():
+            # Create groups table
+            cur.execute("""
+                CREATE TABLE groups (
+                    id SERIAL PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    created_by INTEGER NOT NULL REFERENCES users(id),
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            app.logger.info("✅ Created 'groups' table")
+        else:
+            app.logger.info("✅ 'groups' table already exists")
+        
+        # Check if group_members table exists
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name='group_members'
+        """)
+        
+        if not cur.fetchone():
+            # Create group_members table
+            cur.execute("""
+                CREATE TABLE group_members (
+                    id SERIAL PRIMARY KEY,
+                    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    role VARCHAR(50) DEFAULT 'member' NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(group_id, user_id)
+                )
+            """)
+            conn.commit()
+            app.logger.info("✅ Created 'group_members' table")
+        else:
+            app.logger.info("✅ 'group_members' table already exists")
+        
+        # Check if messages table exists
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name='messages'
+        """)
+        
+        if not cur.fetchone():
+            # Create messages table
+            cur.execute("""
+                CREATE TABLE messages (
+                    id SERIAL PRIMARY KEY,
+                    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    content TEXT NOT NULL,
+                    message_type VARCHAR(50) DEFAULT 'text' NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            app.logger.info("✅ Created 'messages' table")
+        else:
+            app.logger.info("✅ 'messages' table already exists")
+        
+        cur.close()
+        conn.close()
+    except Exception as e:
+        app.logger.error(f"Error ensuring chat tables: {e}")
+        if 'conn' in locals():
+            conn.rollback()
+            conn.close()
+        # Don't raise - allow app to start even if migration fails
+
 # Run migration on app startup (non-blocking)
 import threading
 def run_migration_async():
     """Run migration in background thread to not block app startup"""
     try:
         ensure_admin_column()
+        ensure_chat_tables()
     except Exception as e:
         app.logger.warning(f"Could not run auto-migration on startup: {e}")
 
@@ -1945,17 +2037,21 @@ def get_groups():
         
         groups = []
         for row in cur.fetchall():
-            groups.append({
-                "id": row[0],
-                "name": row[1],
-                "description": row[2],
-                "created_by": row[3],
-                "created_at": row[4].isoformat() if row[4] else None,
-                "updated_at": row[5].isoformat() if row[5] else None,
-                "creator_name": row[6],
-                "member_count": row[7],
-                "user_role": row[8]
-            })
+            try:
+                groups.append({
+                    "id": row[0],
+                    "name": row[1],
+                    "description": row[2],
+                    "created_by": row[3],
+                    "created_at": row[4].isoformat() if row[4] else None,
+                    "updated_at": row[5].isoformat() if row[5] else None,
+                    "creator_name": row[6] if len(row) > 6 else None,
+                    "member_count": row[7] if len(row) > 7 else 0,
+                    "user_role": row[8] if len(row) > 8 else 'not_member'
+                })
+            except (IndexError, TypeError) as e:
+                app.logger.error(f"Error processing group row: {e}, row: {row}")
+                continue
         
         cur.close()
         conn.close()
@@ -1963,6 +2059,13 @@ def get_groups():
         return jsonify({"groups": groups})
         
     except Exception as e:
+        if 'conn' in locals():
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Get groups error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 @app.route("/groups/discover", methods=["GET"])
@@ -2003,17 +2106,21 @@ def discover_groups():
         
         groups = []
         for row in cur.fetchall():
-            groups.append({
-                "id": row[0],
-                "name": row[1],
-                "description": row[2],
-                "created_by": row[3],
-                "created_at": row[4].isoformat() if row[4] else None,
-                "updated_at": row[5].isoformat() if row[5] else None,
-                "creator_name": row[6],
-                "member_count": row[7],
-                "user_role": row[8] if row[8] != 'not_member' else None
-            })
+            try:
+                groups.append({
+                    "id": row[0],
+                    "name": row[1],
+                    "description": row[2],
+                    "created_by": row[3],
+                    "created_at": row[4].isoformat() if row[4] else None,
+                    "updated_at": row[5].isoformat() if row[5] else None,
+                    "creator_name": row[6] if len(row) > 6 else None,
+                    "member_count": row[7] if len(row) > 7 else 0,
+                    "user_role": row[8] if len(row) > 8 and row[8] != 'not_member' else None
+                })
+            except (IndexError, TypeError) as e:
+                app.logger.error(f"Error processing discover group row: {e}, row: {row}")
+                continue
         
         cur.close()
         conn.close()
@@ -2021,6 +2128,13 @@ def discover_groups():
         return jsonify({"groups": groups})
         
     except Exception as e:
+        if 'conn' in locals():
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Discover groups error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 @app.route("/groups", methods=["POST"])
@@ -2092,7 +2206,12 @@ def create_group():
     except Exception as e:
         if 'conn' in locals():
             conn.rollback()
+            if 'cur' in locals():
+                cur.close()
             conn.close()
+        app.logger.error(f"Create group error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 @app.route("/groups/<int:group_id>", methods=["GET"])

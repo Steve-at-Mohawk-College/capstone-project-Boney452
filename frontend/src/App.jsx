@@ -186,6 +186,7 @@ function App() {
   if (currentView === "search") {
     return (
       <RestaurantSearch
+        userInfo={userInfo}
         onSignOut={() => {
           tokenStorage.remove();
           setToken("");
@@ -256,6 +257,7 @@ function App() {
         {/* Restaurant results */}
         <div className="w-full max-w-6xl mx-auto mt-8 fade-up">
           <RestaurantSearch 
+            userInfo={userInfo}
             onSignOut={() => {
               tokenStorage.remove();
               setToken("");

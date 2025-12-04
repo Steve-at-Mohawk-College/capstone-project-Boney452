@@ -448,7 +448,9 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   <div key={group.id} className="group-card">
                     <div className="group-header">
                       <h3 className="group-name">{group.name}</h3>
-                      <span className="group-role">{group.user_role}</span>
+                      <span className="group-role">
+                        {group.user_role === 'admin' ? 'Group Admin' : group.user_role === 'member' ? 'Member' : group.user_role}
+                      </span>
                     </div>
                     <p className="group-description">{group.description}</p>
                     <div className="group-meta">
@@ -515,7 +517,9 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                   <div key={group.id} className="group-card">
                     <div className="group-header">
                       <h3 className="group-name">{group.name}</h3>
-                      <span className="group-role">{group.user_role || 'Available'}</span>
+                      <span className="group-role">
+                        {group.user_role === 'admin' ? 'Group Admin' : group.user_role === 'member' ? 'Member' : group.user_role || 'Available'}
+                      </span>
                     </div>
                     <p className="group-description">{group.description}</p>
                     <div className="group-meta">
