@@ -15,6 +15,52 @@ from functools import wraps
 # Security Utilities
 # -----------------------------
 
+# Inappropriate words filter
+INAPPROPRIATE_WORDS = [
+    # Spam and fraud related
+    'spam', 'scam', 'fake', 'fraud', 'hate', 'violence',
+    # Adult/profanity words
+    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'damn', 'damned',
+    'ass', 'asshole', 'bitch', 'bastard', 'hell', 'crap', 'piss',
+    'dick', 'cock', 'pussy', 'whore', 'slut', 'cunt', 'motherfucker',
+    'bullshit', 'goddamn', 'goddamned', 'bloody', 'bugger', 'wanker',
+    'prick', 'twat', 'tosser', 'bellend', 'arse', 'arsehole',
+    # Additional variations
+    'f*ck', 'f**k', 's**t', 'sh*t', 'a**', 'a**hole', 'b****', 'b***h',
+    'd***', 'c***', 'p***y', 'w***e', 's***', 'c***', 'm***********r',
+]
+
+def contains_inappropriate_content(text):
+    """Check if text contains inappropriate words"""
+    if not text or not isinstance(text, str):
+        return False
+    
+    text_lower = text.lower()
+    # Check for inappropriate words
+    for word in INAPPROPRIATE_WORDS:
+        if word in text_lower:
+            return True
+    
+    # Check for excessive capitalization (potential spam)
+    if len(text) > 10:
+        caps_ratio = sum(1 for c in text if c.isupper()) / len(text)
+        if caps_ratio > 0.7:  # More than 70% caps
+            return True
+    
+    # Check for excessive repetition (potential spam)
+    if len(text) > 20:
+        words = text.split()
+        if len(words) > 3:
+            # Check if same word repeats too many times
+            word_counts = {}
+            for word in words:
+                word_lower = word.lower()
+                word_counts[word_lower] = word_counts.get(word_lower, 0) + 1
+                if word_counts[word_lower] > len(words) * 0.5:  # Same word more than 50% of text
+                    return True
+    
+    return False
+
 def sanitize_input(text, max_length=1000):
     """Sanitize user input to prevent XSS and SQL injection"""
     if not text:
@@ -264,6 +310,62 @@ def ensure_chat_tables():
         else:
             app.logger.info("✅ 'messages' table already exists")
         
+        # Check if review_reports table exists
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name='review_reports'
+        """)
+        
+        if not cur.fetchone():
+            # Create review_reports table
+            cur.execute("""
+                CREATE TABLE review_reports (
+                    id SERIAL PRIMARY KEY,
+                    rating_id INTEGER NOT NULL REFERENCES restaurant_ratings(id) ON DELETE CASCADE,
+                    reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    reason VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    status VARCHAR(50) DEFAULT 'pending' NOT NULL,
+                    resolved_by INTEGER REFERENCES users(id),
+                    resolved_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(rating_id, reported_by)
+                )
+            """)
+            conn.commit()
+            app.logger.info("✅ Created 'review_reports' table")
+        else:
+            app.logger.info("✅ 'review_reports' table already exists")
+        
+        # Check if message_reports table exists
+        cur.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_name='message_reports'
+        """)
+        
+        if not cur.fetchone():
+            # Create message_reports table
+            cur.execute("""
+                CREATE TABLE message_reports (
+                    id SERIAL PRIMARY KEY,
+                    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+                    reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    reason VARCHAR(255) NOT NULL,
+                    description TEXT,
+                    status VARCHAR(50) DEFAULT 'pending' NOT NULL,
+                    resolved_by INTEGER REFERENCES users(id),
+                    resolved_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(message_id, reported_by)
+                )
+            """)
+            conn.commit()
+            app.logger.info("✅ Created 'message_reports' table")
+        else:
+            app.logger.info("✅ 'message_reports' table already exists")
+        
         cur.close()
         conn.close()
     except Exception as e:
@@ -307,7 +409,7 @@ def require_csrf(f):
         if request.method in ['POST', 'PUT', 'DELETE']:
             csrf_token = request.headers.get('X-CSRF-Token') or request.json.get('csrf_token')
             if not csrf_token or not validate_csrf_token(csrf_token):
-                return jsonify({"error": "Invalid CSRF token"}), 403
+                return jsonify({"error": "Invalid security token. Please refresh the page and try again."}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -401,7 +503,7 @@ def get_restaurants():
         conn.close()
         return jsonify({"restaurants": restaurant_list, "count": len(restaurant_list)})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/restaurants/<int:restaurant_id>")
 def get_restaurant(restaurant_id):
@@ -425,7 +527,7 @@ def get_restaurant(restaurant_id):
         conn.close()
         
         if not restaurant:
-            return jsonify({"error": "Restaurant not found"}), 404
+            return jsonify({"error": "The requested restaurant could not be found."}), 404
         
         avg_rating = float(restaurant[8]) if restaurant[8] else 0
         total_ratings = restaurant[9]
@@ -453,7 +555,7 @@ def get_restaurant(restaurant_id):
             }
         })
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Create Restaurant ---
 @app.route("/restaurants", methods=["POST"])
@@ -465,7 +567,7 @@ def create_restaurant():
     google_api_links = data.get("google_api_links")
 
     if not name or not cuisine_type or not location:
-        return jsonify({"error": "Name, cuisine type, and location are required"}), 400
+        return jsonify({"error": "Name, cuisine type, and location are required fields."}), 400
 
     try:
         conn = get_db_connection()
@@ -499,7 +601,7 @@ def create_restaurant():
             conn.rollback()
             cur.close()
             conn.close()
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Unable to process your request. Please verify your input and try again."}), 400
 
 # --- Signup ---
 @app.route("/signup", methods=["POST"])
@@ -512,7 +614,7 @@ def signup():
     password = data.get("password")
 
     if not username or not email or not password:
-        return jsonify({"error": "Missing fields"}), 400
+        return jsonify({"error": "Required fields are missing. Please provide all necessary information."}), 400
 
     # Validate and sanitize inputs
     username = sanitize_input(username, 50)
@@ -564,7 +666,7 @@ def signup():
             conn.rollback()
             conn.close()
         app.logger.error("Signup error: %s", e)
-        return jsonify({"error": "Registration failed"}), 400
+        return jsonify({"error": "Unable to complete registration. Please verify your information and try again."}), 400
 
 # --- Login ---
 @app.route("/login", methods=["POST"])
@@ -600,22 +702,22 @@ def login():
             cur.close()
             conn.close()
         if "Invalid password" in str(e) or "verify" in str(e):
-            return jsonify({"error": "Invalid password"}), 401
-        return jsonify({"error": str(e)}), 401
+            return jsonify({"error": "The password you entered is incorrect. Please try again."}), 401
+        return jsonify({"error": "Authentication failed. Please verify your credentials and try again."}), 401
 
 # --- Auth: current user ---
 def _require_auth(req):
     auth_header = req.headers.get("Authorization", "")
     if not auth_header.startswith("Bearer "):
-        return None, (jsonify({"error": "Missing or invalid Authorization header"}), 401)
+        return None, (jsonify({"error": "Authentication required. Please sign in to continue."}), 401)
     token = auth_header.split(" ", 1)[1]
     try:
         data = serializer.loads(token, max_age=3600)  # 1 hour expiry
         return data, None
     except SignatureExpired:
-        return None, (jsonify({"error": "Token expired"}), 401)
+        return None, (jsonify({"error": "Your session has expired. Please sign in again."}), 401)
     except BadSignature:
-        return None, (jsonify({"error": "Invalid token"}), 401)
+        return None, (jsonify({"error": "Invalid authentication token. Please sign in again."}), 401)
 
 def _is_admin(user_id):
     """Check if user is an admin"""
@@ -659,9 +761,208 @@ def me():
                 }
             })
         else:
-            return jsonify({"error": "User not found"}), 404
+            return jsonify({"error": "User account could not be found."}), 404
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
+
+# Update user profile (username and/or password)
+@app.route("/me", methods=["PUT"])
+@rate_limit(max_requests=10, window=3600)  # 10 updates per hour
+@require_csrf
+def update_profile():
+    """Update current user's profile (username and/or password)"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({"error": "Request data is required to process this action."}), 400
+        
+        user_id = data["id"]
+        new_username = request_data.get("username")
+        new_password = request_data.get("password")
+        current_password = request_data.get("current_password")
+        
+        # At least one field must be provided
+        if not new_username and not new_password:
+            return jsonify({"error": "Please provide at least one field to update (username or password)."}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get current user data
+        cur.execute("SELECT username, email, password_hash FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User account could not be found."}), 404
+        
+        current_username = user[0]
+        current_email = user[1]
+        stored_password_hash = user[2]
+        
+        # If changing password, verify current password
+        if new_password:
+            if not current_password:
+                cur.close()
+                conn.close()
+                return jsonify({"error": "Current password is required to change your password."}), 400
+            
+            # Verify current password
+            try:
+                ph.verify(stored_password_hash, current_password)
+            except Exception:
+                cur.close()
+                conn.close()
+                return jsonify({"error": "Current password is incorrect. Please try again."}), 401
+            
+            # Validate new password
+            if not validate_password(new_password):
+                cur.close()
+                conn.close()
+                return jsonify({"error": "Password must be at least 8 characters long with uppercase, lowercase, and number"}), 400
+        
+        # If changing username, validate it
+        if new_username:
+            new_username = sanitize_input(new_username, 50)
+            if not validate_username(new_username):
+                cur.close()
+                conn.close()
+                return jsonify({"error": "Username must be 3-50 characters long and contain only letters, numbers, underscores, and hyphens"}), 400
+            
+            # Check if username is already taken by another user
+            cur.execute("SELECT id FROM users WHERE username = %s AND id != %s", (new_username, user_id))
+            if cur.fetchone():
+                cur.close()
+                conn.close()
+                return jsonify({"error": "This username is already taken. Please choose a different one."}), 400
+        
+        # Update user
+        if new_username and new_password:
+            # Update both username and password
+            hashed_password = ph.hash(new_password)
+            cur.execute("""
+                UPDATE users 
+                SET username = %s, password_hash = %s
+                WHERE id = %s
+            """, (new_username, hashed_password, user_id))
+            update_message = "Username and password updated successfully"
+        elif new_username:
+            # Update only username
+            cur.execute("""
+                UPDATE users 
+                SET username = %s
+                WHERE id = %s
+            """, (new_username, user_id))
+            update_message = "Username updated successfully"
+        else:
+            # Update only password
+            hashed_password = ph.hash(new_password)
+            cur.execute("""
+                UPDATE users 
+                SET password_hash = %s
+                WHERE id = %s
+            """, (hashed_password, user_id))
+            update_message = "Password updated successfully"
+        
+        conn.commit()
+        
+        # Get updated user data
+        cur.execute("SELECT id, username, email, created_at, COALESCE(is_admin, FALSE) FROM users WHERE id = %s", (user_id,))
+        updated_user = cur.fetchone()
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": update_message,
+            "user": {
+                "UserId": updated_user[0],
+                "UserName": updated_user[1],
+                "UserEmail": updated_user[2],
+                "CreatedAt": updated_user[3].isoformat() if updated_user[3] else None,
+                "IsAdmin": updated_user[4]
+            }
+        }), 200
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Update profile error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
+
+# Delete current user's account
+@app.route("/me", methods=["DELETE"])
+@rate_limit(max_requests=5, window=3600)  # 5 delete attempts per hour
+@require_csrf
+def delete_account():
+    """Delete current user's own account"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        request_data = request.get_json() or {}
+        user_id = data["id"]
+        password_confirmation = request_data.get("password")
+        
+        # Require password confirmation for security
+        if not password_confirmation:
+            return jsonify({"error": "Password confirmation is required to delete your account."}), 400
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Get user data and verify password
+        cur.execute("SELECT id, username, email, password_hash FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        
+        if not user:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "User account could not be found."}), 404
+        
+        # Verify password
+        try:
+            ph.verify(user[3], password_confirmation)
+        except Exception:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Password confirmation is incorrect. Please try again."}), 401
+        
+        username = user[1]
+        
+        # Delete user (CASCADE will handle related data: group_members, messages)
+        # Note: restaurant_ratings may need manual cleanup if no CASCADE
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        conn.commit()
+        
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Your account has been deleted successfully. We're sorry to see you go."
+        }), 200
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Delete account error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 
 # --- Search Restaurants by Place ID ---
@@ -670,7 +971,7 @@ def search_restaurants_by_place_id():
     place_id = request.args.get("place_id")
     
     if not place_id:
-        return jsonify({"error": "Place ID is required"}), 400
+            return jsonify({"error": "Place ID is required to process this request."}), 400
     
     try:
         conn = get_db_connection()
@@ -705,7 +1006,7 @@ def search_restaurants_by_place_id():
         
     except Exception as e:
         print(f"Error searching restaurants by place_id: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Search ---
 @app.route("/search")
@@ -760,7 +1061,7 @@ def search_restaurants():
         if 'conn' in locals():
             cur.close()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Google Places API Search ---
 @app.route("/test-save", methods=["POST"])
@@ -783,7 +1084,7 @@ def test_save_restaurant():
         
         return jsonify({"success": True, "restaurant_id": restaurant_id})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/google-search", methods=["POST"])
 @rate_limit(max_requests=100, window=3600)  # 100 searches per hour
@@ -810,7 +1111,7 @@ def search_google_places():
     location = sanitize_input(location, 200)
     
     if not query:
-        return jsonify({"error": "Query is required"}), 400
+        return jsonify({"error": "Search query is required. Please enter a location to search."}), 400
     
     # First, check if we have restaurants in our database for this location
     conn = get_db_connection()
@@ -932,11 +1233,11 @@ def search_google_places():
     
     # Only reject completely empty or very short queries
     if len(query.strip()) < 2:
-        return jsonify({"error": "Please enter at least 2 characters"}), 400
+        return jsonify({"error": "Please enter at least 2 characters for your search query."}), 400
     
     # Only reject if it's purely numbers or special characters (no letters at all)
     if not re.search(r'[a-zA-Z]', query):
-        return jsonify({"error": "Please enter a location name with letters"}), 400
+        return jsonify({"error": "Please enter a valid location name containing letters."}), 400
     
     try:
         # Search for places using Google Places API
@@ -970,7 +1271,7 @@ def search_google_places():
         
         # If no places found, return error
         if not places:
-            return jsonify({"error": f"No restaurants found for '{query}'. Please try a different location."}), 404
+            return jsonify({"error": f"No restaurants found for '{query}'. Please try searching for a different location."}), 404
         
         # Format the results and automatically save to database
         formatted_places = []
@@ -1173,9 +1474,9 @@ def search_google_places():
         })
         
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Google Places API request failed: {str(e)}"}), 500
+        return jsonify({"error": "Unable to retrieve restaurant information at this time. Please try again later."}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Add Google Place to Database ---
 @app.route("/add-google-place", methods=["POST"])
@@ -1192,7 +1493,7 @@ def add_google_place():
     
     if not place_id:
         print("Error: No place_id provided")
-        return jsonify({"error": "Place ID is required"}), 400
+        return jsonify({"error": "Place ID is required to process this request."}), 400
     
     try:
         # Get detailed information about the place
@@ -1271,7 +1572,7 @@ def add_google_place():
         existing = cur.fetchone()
         
         if existing:
-            return jsonify({"error": "Restaurant already exists in database"}), 400
+            return jsonify({"error": "This restaurant already exists in our database."}), 400
         
         # Get photo reference
         photo_reference = None
@@ -1318,13 +1619,13 @@ def add_google_place():
         }), 201
         
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Google Places API request failed: {str(e)}"}), 500
+        return jsonify({"error": "Unable to retrieve restaurant information at this time. Please try again later."}), 500
     except Exception as e:
         if 'conn' in locals():
             conn.rollback()
             cur.close()
             conn.close()
-        return jsonify({"error": str(e)}), 400
+        return jsonify({"error": "Unable to process your request. Please verify your input and try again."}), 400
 
 # --- API Usage Check ---
 @app.route("/api-usage")
@@ -1348,10 +1649,10 @@ def batch_add_restaurants():
     place_ids = data.get("place_ids", [])
     
     if not place_ids:
-        return jsonify({"error": "Place IDs are required"}), 400
+        return jsonify({"error": "Place IDs are required to process this request."}), 400
     
     if len(place_ids) > 20:
-        return jsonify({"error": "Maximum 20 restaurants per batch"}), 400
+        return jsonify({"error": "Maximum of 20 restaurants can be processed per batch."}), 400
     
     # Check if we have enough quota
     quota_ok, quota_error = check_api_quota()
@@ -1486,7 +1787,7 @@ def batch_add_restaurants():
         
     except Exception as e:
         conn.rollback()
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+        return jsonify({"error": "A database error occurred. Please try again later."}), 500
     finally:
         cur.close()
         conn.close()
@@ -1504,7 +1805,7 @@ def set_user_admin():
         username = data.get("username")
         
         if not username:
-            return jsonify({"error": "Username is required"}), 400
+            return jsonify({"error": "Username is required to complete this action."}), 400
         
         conn = get_db_connection()
         cur = conn.cursor()
@@ -1516,7 +1817,7 @@ def set_user_admin():
         if not user:
             cur.close()
             conn.close()
-            return jsonify({"error": f"User '{username}' not found"}), 404
+            return jsonify({"error": f"User '{username}' could not be found."}), 404
         
         # Set user as admin
         cur.execute("UPDATE users SET is_admin = TRUE WHERE username = %s", (username,))
@@ -1539,7 +1840,7 @@ def set_user_admin():
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Database Viewer (for development) ---
 @app.route("/users")
@@ -1564,7 +1865,7 @@ def get_users():
         conn.close()
         return jsonify({"users": user_list, "count": len(user_list)})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Admin User Management ---
 @app.route("/admin/users", methods=["POST"])
@@ -1632,7 +1933,7 @@ def admin_create_user():
             conn.rollback()
             conn.close()
         app.logger.error(f"Admin create user error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/admin/users/<int:user_id>", methods=["PUT"])
 @rate_limit(max_requests=20, window=3600)
@@ -1711,7 +2012,7 @@ def admin_update_user(user_id):
             conn.rollback()
             conn.close()
         app.logger.error(f"Admin update user error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/admin/users/<int:user_id>", methods=["DELETE"])
 @rate_limit(max_requests=20, window=3600)
@@ -1754,7 +2055,7 @@ def admin_delete_user(user_id):
             conn.rollback()
             conn.close()
         app.logger.error(f"Admin delete user error: {e}")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # --- Restaurant Rating System ---
 
@@ -1775,10 +2076,14 @@ def rate_restaurant(restaurant_id):
         
         # Validate and sanitize inputs
         if not validate_rating(rating):
-            return jsonify({"error": "Rating must be between 1 and 5"}), 400
+            return jsonify({"error": "Rating must be between 1 and 5 stars."}), 400
         
         # Sanitize review text
         review_text = sanitize_input(review_text, 1000)
+        
+        # Check for inappropriate content
+        if contains_inappropriate_content(review_text):
+            return jsonify({"error": "Your review contains inappropriate content. Please revise your review and try again."}), 400
         
         # Get database connection
         conn = get_db_connection()
@@ -1789,7 +2094,7 @@ def rate_restaurant(restaurant_id):
         if not cur.fetchone():
             cur.close()
             conn.close()
-            return jsonify({"error": "Restaurant not found"}), 404
+            return jsonify({"error": "The requested restaurant could not be found."}), 404
         
         # Check if user already rated this restaurant
         cur.execute("SELECT id, rating FROM restaurant_ratings WHERE restaurant_id = %s AND user_id = %s", 
@@ -1828,7 +2133,15 @@ def rate_restaurant(restaurant_id):
         }), 200
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Rate restaurant error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # Get restaurant ratings
 @app.route("/restaurants/<int:restaurant_id>/ratings")
@@ -1843,11 +2156,11 @@ def get_restaurant_ratings(restaurant_id):
         if not restaurant:
             cur.close()
             conn.close()
-            return jsonify({"error": "Restaurant not found"}), 404
+            return jsonify({"error": "The requested restaurant could not be found."}), 404
         
         # Get all ratings for this restaurant
         cur.execute("""
-            SELECT r.rating, r.review_text, r.created_at, u.username
+            SELECT r.id, r.rating, r.review_text, r.created_at, u.username
             FROM restaurant_ratings r
             JOIN users u ON r.user_id = u.id
             WHERE r.restaurant_id = %s
@@ -1858,7 +2171,7 @@ def get_restaurant_ratings(restaurant_id):
         
         # Calculate average rating
         if ratings:
-            avg_rating = sum(rating[0] for rating in ratings) / len(ratings)
+            avg_rating = sum(rating[1] for rating in ratings) / len(ratings)
             total_ratings = len(ratings)
         else:
             avg_rating = None
@@ -1868,10 +2181,11 @@ def get_restaurant_ratings(restaurant_id):
         formatted_ratings = []
         for rating in ratings:
             formatted_ratings.append({
-                "rating": rating[0],
-                "review_text": rating[1],
-                "created_at": rating[2].isoformat() if rating[2] else None,
-                "username": rating[3]
+                "id": rating[0],
+                "rating": rating[1],
+                "review_text": rating[2],
+                "created_at": rating[3].isoformat() if rating[3] else None,
+                "username": rating[4]
             })
         
         cur.close()
@@ -1887,7 +2201,7 @@ def get_restaurant_ratings(restaurant_id):
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # Get user's rating for a specific restaurant
 @app.route("/restaurants/<int:restaurant_id>/my-rating")
@@ -1928,10 +2242,12 @@ def get_my_rating(restaurant_id):
             }), 200
             
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # Delete user's rating for a restaurant (or any rating if admin)
 @app.route("/restaurants/<int:restaurant_id>/rate", methods=["DELETE"])
+@rate_limit(max_requests=20, window=3600)  # 20 deletions per hour
+@require_csrf
 def delete_restaurant_rating(restaurant_id):
     # Check authentication
     data, error = _require_auth(request)
@@ -1946,7 +2262,12 @@ def delete_restaurant_rating(restaurant_id):
         cur = conn.cursor()
         
         # Get rating_id from request body if admin is deleting someone else's rating
-        rating_id = request.json.get("rating_id") if request.json else None
+        # For DELETE requests, get_json() might fail if Content-Type is not set
+        try:
+            request_data = request.get_json() or {}
+        except Exception:
+            request_data = {}
+        rating_id = request_data.get("rating_id")
         
         if is_platform_admin and rating_id:
             # Admin can delete any rating by rating_id
@@ -1968,7 +2289,7 @@ def delete_restaurant_rating(restaurant_id):
         if not deleted_rating:
             cur.close()
             conn.close()
-            return jsonify({"error": "Rating not found"}), 404
+            return jsonify({"error": "The requested rating could not be found."}), 404
         
         conn.commit()
         cur.close()
@@ -1977,7 +2298,187 @@ def delete_restaurant_rating(restaurant_id):
         return jsonify({"message": "Rating deleted successfully"}), 200
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Delete rating error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
+
+# --- Review Reporting System ---
+
+# Report an inappropriate review
+@app.route("/restaurants/<int:restaurant_id>/ratings/<int:rating_id>/report", methods=["POST"])
+@rate_limit(max_requests=10, window=3600)  # 10 reports per hour
+@require_csrf
+def report_review(restaurant_id, rating_id):
+    """Report an inappropriate review"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        user_id = data["id"]
+        request_data = request.get_json() or {}
+        reason = request_data.get("reason", "").strip()
+        description = request_data.get("description", "").strip()
+        
+        if not reason:
+            return jsonify({"error": "Please provide a reason for reporting this review."}), 400
+        
+        # Validate reason length
+        reason = sanitize_input(reason, 255)
+        description = sanitize_input(description, 1000)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if rating exists and belongs to the restaurant
+        cur.execute("""
+            SELECT id, user_id FROM restaurant_ratings 
+            WHERE id = %s AND restaurant_id = %s
+        """, (rating_id, restaurant_id))
+        
+        rating = cur.fetchone()
+        if not rating:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "The requested rating could not be found."}), 404
+        
+        # Prevent users from reporting their own reviews
+        if rating[1] == user_id:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "You cannot report your own review."}), 400
+        
+        # Check if user already reported this review
+        cur.execute("""
+            SELECT id FROM review_reports 
+            WHERE rating_id = %s AND reported_by = %s
+        """, (rating_id, user_id))
+        
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "You have already reported this review."}), 400
+        
+        # Create report
+        cur.execute("""
+            INSERT INTO review_reports (rating_id, reported_by, reason, description)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+        """, (rating_id, user_id, reason, description))
+        
+        report = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Review reported successfully. Our team will review it shortly.",
+            "report_id": report[0],
+            "created_at": report[1].isoformat()
+        }), 201
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Report review error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
+
+# --- Message Reporting System ---
+
+# Report an inappropriate message
+@app.route("/groups/<int:group_id>/messages/<int:message_id>/report", methods=["POST"])
+@rate_limit(max_requests=10, window=3600)  # 10 reports per hour
+@require_csrf
+def report_message(group_id, message_id):
+    """Report an inappropriate message"""
+    data, error = _require_auth(request)
+    if error is not None:
+        return error
+    
+    try:
+        user_id = data["id"]
+        request_data = request.get_json() or {}
+        reason = request_data.get("reason", "").strip()
+        description = request_data.get("description", "").strip()
+        
+        if not reason:
+            return jsonify({"error": "Please provide a reason for reporting this message."}), 400
+        
+        # Validate reason length
+        reason = sanitize_input(reason, 255)
+        description = sanitize_input(description, 1000)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        # Check if message exists and belongs to the group
+        cur.execute("""
+            SELECT id, user_id FROM messages 
+            WHERE id = %s AND group_id = %s AND is_active = TRUE
+        """, (message_id, group_id))
+        
+        message = cur.fetchone()
+        if not message:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "The requested message could not be found."}), 404
+        
+        # Prevent users from reporting their own messages
+        if message[1] == user_id:
+            cur.close()
+            conn.close()
+            return jsonify({"error": "You cannot report your own message."}), 400
+        
+        # Check if user already reported this message
+        cur.execute("""
+            SELECT id FROM message_reports 
+            WHERE message_id = %s AND reported_by = %s
+        """, (message_id, user_id))
+        
+        if cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({"error": "You have already reported this message."}), 400
+        
+        # Create report
+        cur.execute("""
+            INSERT INTO message_reports (message_id, reported_by, reason, description)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, created_at
+        """, (message_id, user_id, reason, description))
+        
+        report = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        
+        return jsonify({
+            "message": "Message reported successfully. Our team will review it shortly.",
+            "report_id": report[0],
+            "created_at": report[1].isoformat()
+        }), 201
+        
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            if 'cur' in locals():
+                cur.close()
+            conn.close()
+        app.logger.error(f"Report message error: {e}")
+        import traceback
+        app.logger.error(traceback.format_exc())
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # -----------------------------
 # Chat System Endpoints
@@ -1991,13 +2492,13 @@ def get_groups():
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         is_platform_admin = _is_admin(user_id)
@@ -2066,7 +2567,7 @@ def get_groups():
         app.logger.error(f"Get groups error: {e}")
         import traceback
         app.logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/discover", methods=["GET"])
 @rate_limit(max_requests=100, window=3600)
@@ -2076,13 +2577,13 @@ def discover_groups():
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2135,7 +2636,7 @@ def discover_groups():
         app.logger.error(f"Discover groups error: {e}")
         import traceback
         app.logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups", methods=["POST"])
 @rate_limit(max_requests=50, window=3600)
@@ -2146,26 +2647,26 @@ def create_group():
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
         # Get request data
         request_data = request.get_json()
         if not request_data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "Request data is required to process this action."}), 400
         
         name = sanitize_input(request_data.get('name', ''), 255)
         description = sanitize_input(request_data.get('description', ''), 1000)
         
         if not name:
-            return jsonify({"error": "Group name is required"}), 400
+            return jsonify({"error": "Group name is required to create a group."}), 400
         
         conn = get_db_connection()
         cur = conn.cursor()
@@ -2212,7 +2713,7 @@ def create_group():
         app.logger.error(f"Create group error: {e}")
         import traceback
         app.logger.error(traceback.format_exc())
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>", methods=["GET"])
 @rate_limit(max_requests=100, window=3600)
@@ -2222,13 +2723,13 @@ def get_group_details(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2243,7 +2744,7 @@ def get_group_details(group_id):
         
         user_role = cur.fetchone()
         if not user_role:
-            return jsonify({"error": "You are not a member of this group"}), 403
+            return jsonify({"error": "You are not a member of this group. Please join the group to access this feature."}), 403
         
         # Get group details
         cur.execute("""
@@ -2299,7 +2800,7 @@ def get_group_details(group_id):
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>/join", methods=["POST"])
 @rate_limit(max_requests=50, window=3600)
@@ -2310,13 +2811,13 @@ def join_group(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2359,7 +2860,7 @@ def join_group(group_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>/leave", methods=["POST"])
 @rate_limit(max_requests=50, window=3600)
@@ -2370,13 +2871,13 @@ def leave_group(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2391,7 +2892,7 @@ def leave_group(group_id):
         
         member_result = cur.fetchone()
         if not member_result:
-            return jsonify({"error": "You are not a member of this group"}), 403
+            return jsonify({"error": "You are not a member of this group. Please join the group to access this feature."}), 403
         
         # Check if user is the creator (admin)
         if member_result[0] == 'admin':
@@ -2422,7 +2923,7 @@ def leave_group(group_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>", methods=["PUT"])
 @rate_limit(max_requests=50, window=3600)
@@ -2433,26 +2934,26 @@ def update_group(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
         # Get request data
         request_data = request.get_json()
         if not request_data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "Request data is required to process this action."}), 400
         
         name = sanitize_input(request_data.get('name', ''), 255)
         description = sanitize_input(request_data.get('description', ''), 1000)
         
         if not name:
-            return jsonify({"error": "Group name is required"}), 400
+            return jsonify({"error": "Group name is required to create a group."}), 400
         
         conn = get_db_connection()
         cur = conn.cursor()
@@ -2487,7 +2988,7 @@ def update_group(group_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>", methods=["DELETE"])
 @rate_limit(max_requests=50, window=3600)
@@ -2498,13 +2999,13 @@ def delete_group(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2554,7 +3055,7 @@ def delete_group(group_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # -----------------------------
 # Messaging Endpoints
@@ -2568,13 +3069,13 @@ def get_messages(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2586,14 +3087,20 @@ def get_messages(group_id):
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if user is member of the group
-        cur.execute("""
-            SELECT role FROM group_members 
-            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
-        """, (group_id, user_id))
+        # Check if user is admin
+        is_platform_admin = _is_admin(user_id)
         
-        if not cur.fetchone():
-            return jsonify({"error": "You are not a member of this group"}), 403
+        # Check if user is member of the group (admins can view messages even if not members)
+        if not is_platform_admin:
+            cur.execute("""
+                SELECT role FROM group_members 
+                WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+            """, (group_id, user_id))
+            
+            if not cur.fetchone():
+                cur.close()
+                conn.close()
+                return jsonify({"error": "You are not a member of this group. Please join the group to access this feature."}), 403
         
         # Get messages
         cur.execute("""
@@ -2642,7 +3149,7 @@ def get_messages(group_id):
         })
         
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/groups/<int:group_id>/messages", methods=["POST"])
 @rate_limit(max_requests=100, window=3600)
@@ -2653,20 +3160,20 @@ def send_message(group_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
         # Get request data
         request_data = request.get_json()
         if not request_data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "Request data is required to process this action."}), 400
         
         content = sanitize_input(request_data.get('content', ''), 2000)
         message_type = sanitize_input(request_data.get('message_type', 'text'), 20)
@@ -2674,20 +3181,30 @@ def send_message(group_id):
         if not content:
             return jsonify({"error": "Message content is required"}), 400
         
+        # Check for inappropriate content
+        if contains_inappropriate_content(content):
+            return jsonify({"error": "Your message contains inappropriate content. Please revise your message and try again."}), 400
+        
         if message_type not in ['text', 'image', 'file', 'system']:
             return jsonify({"error": "Invalid message type"}), 400
         
         conn = get_db_connection()
         cur = conn.cursor()
         
-        # Check if user is member of the group
-        cur.execute("""
-            SELECT role FROM group_members 
-            WHERE group_id = %s AND user_id = %s AND is_active = TRUE
-        """, (group_id, user_id))
+        # Check if user is admin
+        is_platform_admin = _is_admin(user_id)
         
-        if not cur.fetchone():
-            return jsonify({"error": "You are not a member of this group"}), 403
+        # Check if user is member of the group (admins can send messages even if not members)
+        if not is_platform_admin:
+            cur.execute("""
+                SELECT role FROM group_members 
+                WHERE group_id = %s AND user_id = %s AND is_active = TRUE
+            """, (group_id, user_id))
+            
+            if not cur.fetchone():
+                cur.close()
+                conn.close()
+                return jsonify({"error": "You are not a member of this group. Please join the group to access this feature."}), 403
         
         # Insert message
         cur.execute("""
@@ -2724,7 +3241,7 @@ def send_message(group_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/messages/<int:message_id>", methods=["PUT"])
 @rate_limit(max_requests=100, window=3600)
@@ -2735,20 +3252,20 @@ def edit_message(message_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
         # Get request data
         request_data = request.get_json()
         if not request_data:
-            return jsonify({"error": "No data provided"}), 400
+            return jsonify({"error": "Request data is required to process this action."}), 400
         
         content = sanitize_input(request_data.get('content', ''), 2000)
         
@@ -2778,7 +3295,7 @@ def edit_message(message_id):
         """, (message_result[2], user_id))
         
         if not cur.fetchone():
-            return jsonify({"error": "You are not a member of this group"}), 403
+            return jsonify({"error": "You are not a member of this group. Please join the group to access this feature."}), 403
         
         # Update message
         cur.execute("""
@@ -2797,7 +3314,7 @@ def edit_message(message_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 @app.route("/messages/<int:message_id>", methods=["DELETE"])
 @rate_limit(max_requests=100, window=3600)
@@ -2808,13 +3325,13 @@ def delete_message(message_id):
         # Get user from token
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({"error": "No token provided"}), 401
+            return jsonify({"error": "Authentication required. Please sign in to continue."}), 401
         
         token = token.split(' ')[1]
         try:
             data = serializer.loads(token, max_age=3600)
         except (BadSignature, SignatureExpired):
-            return jsonify({"error": "Invalid or expired token"}), 401
+            return jsonify({"error": "Invalid or expired authentication token. Please sign in again."}), 401
         
         user_id = data["id"]
         
@@ -2863,7 +3380,7 @@ def delete_message(message_id):
         if 'conn' in locals():
             conn.rollback()
             conn.close()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # -----------------------------
 # Run Server

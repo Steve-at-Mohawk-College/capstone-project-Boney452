@@ -4,6 +4,7 @@ import Signup from "./Components/signup";
 import RestaurantSearch from "./Components/RestaurantSearch";
 import UserManagement from "./Components/UserManagement";
 import ChatSystem from "./Components/ChatSystem";
+import UserProfile from "./Components/UserProfile";
 import { API_BASE_URL } from "./config";
 import { tokenStorage } from "./utils/tokenStorage";
 
@@ -103,6 +104,10 @@ function App() {
     setCurrentView("search");
   };
 
+  const handleProfileUpdate = (updatedUserInfo) => {
+    setUserInfo(updatedUserInfo);
+  };
+
   // Check if current user is an admin
   const isAdmin = () => {
     if (!userInfo) return false;
@@ -138,12 +143,13 @@ function App() {
             <p className="subtle">Your culinary journey starts here</p>
           </div>
 
-          {/* Enhanced Action Buttons */}
-          <div className="space-y-6">
+          {/* Action Buttons */}
+          <div className="flex flex-col items-center space-y-4">
             {/* Create New Account Button */}
             <button
               onClick={() => setCurrentView("signup")}
-              className="btn btn-primary w-full text-lg py-4"
+              className="btn btn-primary text-xl py-5 px-16 font-medium"
+              style={{ width: 'auto', minWidth: '440px' }}
             >
               Create New Account
             </button>
@@ -151,7 +157,8 @@ function App() {
             {/* Sign In Button */}
             <button
               onClick={() => setCurrentView("login")}
-              className="btn btn-secondary w-full text-lg py-4"
+              className="btn btn-secondary text-xl py-5 px-16 font-medium"
+              style={{ width: 'auto', minWidth: '440px' }}
             >
               Sign In
             </button>
@@ -195,6 +202,7 @@ function App() {
         }}
         onManageUsers={() => setCurrentView("users")}
         onOpenChat={() => setCurrentView("chat")}
+        onOpenProfile={() => setCurrentView("profile")}
         isAdmin={isAdmin()}
       />
     );
@@ -301,6 +309,23 @@ function App() {
           setUserInfo(null);
         }}
         onBackToSearch={() => setCurrentView("search")}
+      />
+    );
+  }
+
+  // Profile Page
+  if (currentView === "profile") {
+    return (
+      <UserProfile
+        userInfo={userInfo}
+        onSignOut={() => {
+          tokenStorage.remove();
+          setToken("");
+          setCurrentView("landing");
+          setUserInfo(null);
+        }}
+        onBackToSearch={() => setCurrentView("search")}
+        onProfileUpdate={handleProfileUpdate}
       />
     );
   }

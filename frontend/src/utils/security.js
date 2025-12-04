@@ -117,6 +117,66 @@ export function validateRating(rating) {
 }
 
 /**
+ * Check if text contains inappropriate content
+ * @param {string} text - Text to check
+ * @returns {boolean} - True if contains inappropriate content
+ */
+export function containsInappropriateContent(text) {
+  if (!text || typeof text !== 'string') {
+    return false;
+  }
+
+  const inappropriateWords = [
+    // Spam and fraud related
+    'spam', 'scam', 'fake', 'fraud', 'hate', 'violence',
+    // Adult/profanity words
+    'fuck', 'fucking', 'fucked', 'shit', 'shitting', 'damn', 'damned',
+    'ass', 'asshole', 'bitch', 'bastard', 'hell', 'crap', 'piss',
+    'dick', 'cock', 'pussy', 'whore', 'slut', 'cunt', 'motherfucker',
+    'bullshit', 'goddamn', 'goddamned', 'bloody', 'bugger', 'wanker',
+    'prick', 'twat', 'tosser', 'bellend', 'arse', 'arsehole',
+    // Additional variations
+    'f*ck', 'f**k', 's**t', 'sh*t', 'a**', 'a**hole', 'b****', 'b***h',
+    'd***', 'c***', 'p***y', 'w***e', 's***', 'c***', 'm***********r',
+  ];
+
+  const textLower = text.toLowerCase();
+  
+  // Check for inappropriate words
+  for (const word of inappropriateWords) {
+    if (textLower.includes(word)) {
+      return true;
+    }
+  }
+
+  // Check for excessive capitalization (potential spam)
+  if (text.length > 10) {
+    const capsCount = (text.match(/[A-Z]/g) || []).length;
+    const capsRatio = capsCount / text.length;
+    if (capsRatio > 0.7) { // More than 70% caps
+      return true;
+    }
+  }
+
+  // Check for excessive repetition (potential spam)
+  if (text.length > 20) {
+    const words = text.split(/\s+/);
+    if (words.length > 3) {
+      const wordCounts = {};
+      for (const word of words) {
+        const wordLower = word.toLowerCase();
+        wordCounts[wordLower] = (wordCounts[wordLower] || 0) + 1;
+        if (wordCounts[wordLower] > words.length * 0.5) { // Same word more than 50% of text
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
  * Sanitize restaurant data from API
  * @param {Object} restaurant - Restaurant object to sanitize
  * @returns {Object} - Sanitized restaurant object

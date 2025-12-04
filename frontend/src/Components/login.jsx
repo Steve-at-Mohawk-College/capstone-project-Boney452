@@ -33,7 +33,7 @@ const Login = ({ onLoginSuccess, onSwitchToSignup, onBackToLanding }) => {
       onLoginSuccess(token);
       setFormData({ email: "", password: "" });
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed. Please try again.");
+      setError(err.response?.data?.error || "Unable to sign in. Please verify your credentials and try again.");
     } finally {
       setIsLoading(false);
     }

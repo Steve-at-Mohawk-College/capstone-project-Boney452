@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { sanitizeInput, csrfManager } from '../utils/security';
+import { sanitizeInput, csrfManager, containsInappropriateContent } from '../utils/security';
 import { API_BASE_URL } from '../config';
 import { tokenStorage } from '../utils/tokenStorage';
 
@@ -24,11 +24,12 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
   const [editGroupName, setEditGroupName] = useState('');
   const [editGroupDescription, setEditGroupDescription] = useState('');
 
+
   useEffect(() => {
     if (userInfo) {
       loadGroups();
     } else {
-      setError('Please login to access the chat system.');
+      setError('Authentication required to access the chat system.');
     }
   }, [userInfo]);
 
@@ -37,7 +38,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       setLoading(true);
       const token = tokenStorage.get();
       if (!token) {
-        setError('No authentication token found. Please login again.');
+        setError('Authentication required. Please sign in to continue.');
         return;
       }
       const response = await axios.get(`${API_BASE_URL}/groups`, {
@@ -45,7 +46,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       });
       setGroups(response.data.groups);
     } catch (error) {
-      setError('Failed to load groups. Please check your authentication.');
+      setError('Unable to load groups. Please verify your authentication and try again.');
       console.error('Load groups error:', error);
     } finally {
       setLoading(false);
@@ -57,7 +58,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       setLoading(true);
       const token = tokenStorage.get();
       if (!token) {
-        setError('No authentication token found. Please login again.');
+        setError('Authentication required. Please sign in to continue.');
         return;
       }
       const response = await axios.get(`${API_BASE_URL}/groups/discover`, {
@@ -65,7 +66,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       });
       setDiscoverGroups(response.data.groups);
     } catch (error) {
-      setError('Failed to load discoverable groups.');
+      setError('Unable to load available groups. Please try again later.');
       console.error('Load discover groups error:', error);
     } finally {
       setLoading(false);
@@ -81,7 +82,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       });
       setMessages(response.data.messages.reverse()); // Reverse to show oldest first
     } catch (error) {
-      setError('Failed to load messages');
+      setError('Unable to load messages. Please try again.');
       console.error('Load messages error:', error);
     } finally {
       setLoading(false);
@@ -96,7 +97,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       
       const token = tokenStorage.get();
       if (!token) {
-        setError('No authentication token found. Please login again.');
+        setError('Authentication required. Please sign in to continue.');
         return;
       }
       
@@ -119,7 +120,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       setCurrentView('groups');
       loadGroups();
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to create group');
+      setError(error.response?.data?.error || 'Unable to create group. Please try again.');
       console.error('Create group error:', error);
     } finally {
       setLoading(false);
@@ -145,7 +146,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       setSuccess('Successfully joined the group!');
       loadGroups();
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to join group');
+      setError(error.response?.data?.error || 'Unable to join group. Please try again.');
       console.error('Join group error:', error);
     } finally {
       setLoading(false);
@@ -175,7 +176,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
         setSelectedGroup(null);
       }
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to leave group');
+      setError(error.response?.data?.error || 'Unable to leave group. Please try again.');
       console.error('Leave group error:', error);
     } finally {
       setLoading(false);
@@ -227,7 +228,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       loadDiscoverGroups();
       cancelEditGroup();
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to update group');
+      setError(error.response?.data?.error || 'Unable to update group. Please try again.');
       console.error('Edit group error:', error);
     } finally {
       setLoading(false);
@@ -257,7 +258,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
         setSelectedGroup(null);
       }
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to delete group');
+      setError(error.response?.data?.error || 'Unable to delete group. Please try again.');
       console.error('Delete group error:', error);
     } finally {
       setLoading(false);
@@ -267,6 +268,12 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !selectedGroup) return;
+
+    // Check for inappropriate content
+    if (containsInappropriateContent(newMessage)) {
+      setError("Your message contains inappropriate content. Please revise your message and try again.");
+      return;
+    }
 
     try {
       setLoading(true);
@@ -290,7 +297,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
       setMessages(prev => [...prev, response.data.message_data]);
       setNewMessage('');
     } catch (error) {
-      setError(error.response?.data?.error || 'Failed to send message');
+      setError(error.response?.data?.error || 'Unable to send message. Please try again.');
       console.error('Send message error:', error);
     } finally {
       setLoading(false);
@@ -518,7 +525,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
                     <div className="group-header">
                       <h3 className="group-name">{group.name}</h3>
                       <span className="group-role">
-                        {group.user_role === 'admin' ? 'Group Admin' : group.user_role === 'member' ? 'Member' : group.user_role || 'Available'}
+                        {group.user_role === 'admin' ? 'Group Admin' : group.user_role === 'member' ? 'Member' : group.user_role === 'not_member' ? 'Not A Member' : group.user_role || 'Available'}
                       </span>
                     </div>
                     <p className="group-description">{group.description}</p>

@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../config";
 import { tokenStorage } from "../utils/tokenStorage";
 import { searchHistory } from "../utils/searchHistory";
 
-function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, isAdmin }) {
+function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOpenProfile, isAdmin }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,7 +58,7 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, isAd
         }
       }
     } catch (err) {
-      setError("Failed to search restaurants. Please try again.");
+      setError("Unable to search restaurants at this time. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -93,7 +93,7 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, isAd
         }
       }
     } catch (err) {
-      setError("Failed to search restaurants. Please try again.");
+      setError("Unable to search restaurants at this time. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -120,6 +120,14 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, isAd
         >
           💬 Chat
         </button>
+        {typeof onOpenProfile === 'function' && (
+          <button
+            onClick={onOpenProfile}
+            className="btn btn-ghost shadow-lg"
+          >
+            👤 Profile
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={onManageUsers}

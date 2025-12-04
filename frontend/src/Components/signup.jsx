@@ -52,7 +52,7 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
       setFormData({ username: "", email: "", password: "", confirmPassword: "" });
       setTimeout(() => onSwitchToLogin(), 1200);
     } catch (err) {
-      setError(err.response?.data?.error || "Signup failed. Please try again.");
+      setError(err.response?.data?.error || "Unable to create account. Please verify your information and try again.");
     } finally {
       setIsLoading(false);
     }

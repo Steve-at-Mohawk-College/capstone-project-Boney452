@@ -314,7 +314,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
       }
     } catch (err) {
       console.error("Fetch users error:", err);
-      setError("Failed to fetch users. Please try again.");
+      setError("Unable to load users. Please try again later.");
     } finally {
       setIsLoading(false);
     }
@@ -370,7 +370,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
     try {
       const token = tokenStorage.get();
       if (!token) {
-        setError("Authentication required. Please log in again.");
+        setError("Authentication required. Please sign in to continue.");
         setIsSubmitting(false);
         return;
       }
@@ -395,7 +395,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
       await fetchUsers();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to add user. Please try again.");
+      setError(err.response?.data?.error || "Unable to create user. Please verify the information and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -411,7 +411,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
     try {
       const token = tokenStorage.get();
       if (!token) {
-        setError("Authentication required. Please log in again.");
+        setError("Authentication required. Please sign in to continue.");
         setIsSubmitting(false);
         return;
       }
@@ -441,7 +441,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
       await fetchUsers();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to update user. Please try again.");
+      setError(err.response?.data?.error || "Unable to update user. Please verify the information and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -456,7 +456,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
     try {
       const token = tokenStorage.get();
       if (!token) {
-        setError("Authentication required. Please log in again.");
+        setError("Authentication required. Please sign in to continue.");
         setIsSubmitting(false);
         return;
       }
@@ -476,7 +476,7 @@ function UserManagement({ onSignOut, onBackToSearch }) {
       await fetchUsers();
       setTimeout(() => setSuccess(""), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || "Failed to delete user. Please try again.");
+      setError(err.response?.data?.error || "Unable to delete user. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

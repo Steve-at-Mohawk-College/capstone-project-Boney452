@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager } from "../utils/security";
+import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager, containsInappropriateContent } from "../utils/security";
 import { API_BASE_URL } from "../config";
 import { tokenStorage } from "../utils/tokenStorage";
 
@@ -131,18 +131,24 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
     const token = getToken();
     
     if (!token) {
-      setError("Please login to rate restaurants");
+      setError("Authentication required to rate restaurants. Please sign in to continue.");
       return;
     }
 
     // Validate rating
     if (!validateRating(rating)) {
-      setError("Please select a valid rating between 1 and 5");
+      setError("Please select a rating between 1 and 5 stars.");
       return;
     }
 
     // Sanitize review text
     const sanitizedReviewText = sanitizeInput(reviewText, 1000);
+    
+    // Check for inappropriate content
+    if (containsInappropriateContent(sanitizedReviewText)) {
+      setError("Your review contains inappropriate content. Please revise your review and try again.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
@@ -156,21 +162,21 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
         targetRestaurantId = searchResultData.ResturantsId;
         
         if (!targetRestaurantId) {
-          setError("Restaurant not found in database. Please try again.");
+          setError("Restaurant information could not be found. Please try again.");
           setIsSubmitting(false);
           return;
         }
       } else if (!targetRestaurantId) {
-        setError("Restaurant not found. Please try again.");
+        setError("Restaurant information could not be found. Please try again.");
         setIsSubmitting(false);
         return;
       }
 
       const csrfToken = await csrfManager.getToken();
       const headers = {
-        ...csrfManager.getHeaders(),
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'X-CSRF-Token': csrfToken
       };
       
       const response = await axios.post(
@@ -213,7 +219,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       }
     } catch (err) {
       console.error("Rating submission error:", err);
-      setError("Failed to submit rating. Please try again.");
+      setError("Unable to submit rating. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -221,7 +227,10 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
 
   const handleDeleteRating = async () => {
     const token = getToken();
-    if (!token) return;
+    if (!token) {
+      setError("Authentication required to delete ratings. Please sign in to continue.");
+      return;
+    }
 
     // Use restaurant ID from search data if available
     let targetRestaurantId = restaurantId;
@@ -234,9 +243,21 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       return;
     }
 
+    setIsSubmitting(true);
+    setError("");
+
     try {
-      await axios.delete(`${API_BASE_URL}/restaurants/${targetRestaurantId}/rate`, {
-        headers: { Authorization: `Bearer ${token}` }
+      const csrfToken = await csrfManager.getToken();
+      
+      // Use axios config format for DELETE with headers
+      await axios({
+        method: 'delete',
+        url: `${API_BASE_URL}/restaurants/${targetRestaurantId}/rate`,
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "X-CSRF-Token": csrfToken,
+          "Content-Type": "application/json"
+        }
       });
 
       // Update local state after successful deletion
@@ -268,7 +289,9 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       }
     } catch (err) {
       console.error("Rating deletion error:", err);
-      setError("Failed to delete rating. Please try again.");
+      setError(err.response?.data?.error || "Unable to delete rating. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -326,15 +349,35 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
         {getToken() && (
           <div className="mb-4">
             {!showRatingForm ? (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowRatingForm(true);
-                }}
-                className="btn btn-primary w-full"
-              >
-                {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowRatingForm(true);
+                  }}
+                  className="btn btn-primary flex-1"
+                >
+                  {searchResultData.user_review ? "Edit Your Review" : "Rate This Restaurant"}
+                </button>
+                {searchResultData.user_review && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm("Are you sure you want to delete your rating and review? This action cannot be undone.")) {
+                        handleDeleteRating();
+                      }
+                    }}
+                    className="btn"
+                    style={{
+                      background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                      color: "white"
+                    }}
+                    title="Delete your rating and review"
+                  >
+                    Delete Review
+                  </button>
+                )}
+              </div>
             ) : (
               <form onSubmit={handleSubmitRating} className="space-y-4" onClick={(e) => e.stopPropagation()}>
                 <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
@@ -441,15 +484,35 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
       {getToken() && (
         <div className={`${isCompact ? 'mb-2' : 'mb-4'}`}>
           {!showRatingForm ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowRatingForm(true);
-              }}
-              className={`btn btn-primary ${isCompact ? 'text-sm px-3 py-2' : ''}`}
-            >
-              {myRating ? "Update My Rating" : "Rate This Restaurant"}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowRatingForm(true);
+                }}
+                className={`btn btn-primary flex-1 ${isCompact ? 'text-sm px-3 py-2' : ''}`}
+              >
+                {myRating ? "Update My Rating" : "Rate This Restaurant"}
+              </button>
+              {myRating && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Are you sure you want to delete your rating and review? This action cannot be undone.")) {
+                      handleDeleteRating();
+                    }
+                  }}
+                  className={`btn ${isCompact ? 'text-sm px-3 py-2' : ''}`}
+                  style={{
+                    background: "linear-gradient(135deg, #EF4444, #DC2626)",
+                    color: "white"
+                  }}
+                  title="Delete your rating and review"
+                >
+                  {isCompact ? "Delete" : "Delete Review"}
+                </button>
+              )}
+            </div>
           ) : (
             <form onSubmit={handleSubmitRating} className={`${isCompact ? 'space-y-2' : 'space-y-4'}`} onClick={(e) => e.stopPropagation()}>
               <div className={`bg-yellow-50 ${isCompact ? 'p-2' : 'p-4'} rounded-lg border border-yellow-200`}>
@@ -527,23 +590,24 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
         <div>
           <h4 className="font-medium mb-2">User Reviews:</h4>
           <div className="space-y-3 max-h-60 overflow-y-auto">
-            {restaurantRatings.ratings.map((rating, index) => (
-              <div key={index} className="border-l-4 border-blue-500 pl-3">
-                <div className="flex items-center space-x-2 mb-1">
-                  {renderStars(rating.rating, false, null, isCompact)}
-                  <span className="text-sm font-medium">{rating.username}</span>
-                  <span className="text-xs text-gray-500">
-                    {new Date(rating.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-                {rating.review_text && (
-                  <p className="text-sm text-gray-700">{rating.review_text}</p>
+            {restaurantRatings.ratings.map((ratingItem, index) => (
+              <div key={index} className="border-l-4 border-blue-500 pl-3 relative">
+                  <div className="flex items-center space-x-2 mb-1">
+                    {renderStars(ratingItem.rating, false, null, isCompact)}
+                    <span className="text-sm font-medium">{ratingItem.username}</span>
+                    <span className="text-xs text-gray-500">
+                      {new Date(ratingItem.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                {ratingItem.review_text && (
+                  <p className="text-sm text-gray-700">{ratingItem.review_text}</p>
                 )}
               </div>
             ))}
           </div>
         </div>
       )}
+
 
       {!getToken() && (
         <p className="text-sm text-gray-500 mt-2">
