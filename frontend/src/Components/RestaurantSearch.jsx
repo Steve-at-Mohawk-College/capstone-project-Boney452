@@ -116,14 +116,16 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
       <div className="top-right-nav-buttons fixed top-4 right-4 sm:top-6 sm:right-6 flex flex-col sm:flex-row flex-wrap sm:flex-nowrap gap-2 sm:gap-3 z-50">
         <button
           onClick={onOpenChat}
-          className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
+          className="btn btn-ghost shadow-lg text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap"
+          style={{ minWidth: '120px', fontSize: '0.9375rem' }}
         >
           <span className="hidden sm:inline">💬 </span>Chat
         </button>
         {typeof onOpenProfile === 'function' && (
           <button
             onClick={onOpenProfile}
-            className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
+            className="btn btn-ghost shadow-lg text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap"
+            style={{ minWidth: '120px', fontSize: '0.9375rem' }}
           >
             <span className="hidden sm:inline">👤 </span>Profile
           </button>
@@ -131,14 +133,16 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
         {isAdmin && (
           <button
             onClick={onManageUsers}
-            className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
+            className="btn btn-ghost shadow-lg text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap"
+            style={{ minWidth: '120px', fontSize: '0.9375rem' }}
           >
             Manage Users
           </button>
         )}
         <button
           onClick={onSignOut}
-          className="btn btn-secondary shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
+          className="btn btn-secondary shadow-lg text-sm sm:text-base px-4 sm:px-6 py-2.5 sm:py-3 whitespace-nowrap"
+          style={{ minWidth: '120px', fontSize: '0.9375rem' }}
         >
           Sign Out
         </button>
