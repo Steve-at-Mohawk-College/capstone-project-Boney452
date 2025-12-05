@@ -9,7 +9,6 @@
   # Content Security Policy (Production)
   # Secure CSP for React/Vite production builds
   # 'self' allows scripts from same origin (Netlify domain)
-  # 'strict-dynamic' allows scripts loaded by trusted scripts (React/Vite bundles)
-  # Both are needed: 'self' for initial script tags, 'strict-dynamic' for dynamically loaded modules
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'strict-dynamic' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; connect-src 'self' https://maps.googleapis.com https://flavour-quest-e7ho.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  # Note: Removed 'strict-dynamic' as it disables host-based allowlisting needed for Vite's initial script tags
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; connect-src 'self' https://maps.googleapis.com https://flavour-quest-e7ho.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
 
