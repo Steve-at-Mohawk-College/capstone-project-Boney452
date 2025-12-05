@@ -14,17 +14,18 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(!!tokenStorage.get()); // Show loading if we have a token to check
+  const [isLoading, setIsLoading] = useState(false); // Start with false
 
 
   // Fetch user info on component mount if token exists and redirect to search
   useEffect(() => {
     if (token && !userInfo) {
+      setIsLoading(true);
       const fetchUserInfo = async () => {
         try {
-          // Add timeout to prevent infinite loading
+          // Reduced timeout to 3 seconds for faster failure
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
           
           const response = await fetch(`${API_BASE_URL}/me`, {
             headers: {
@@ -49,7 +50,7 @@ function App() {
         } catch (error) {
           // Error fetching user info (network error, timeout, etc.)
           console.error("Error fetching user info:", error);
-          // Clear token and show landing page
+          // Clear token and show landing page immediately
           tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
@@ -64,6 +65,7 @@ function App() {
       setIsLoading(false);
     } else if (!token) {
       // No token, show landing page
+      setCurrentView("landing");
       setIsLoading(false);
     }
   }, [token, userInfo]);
