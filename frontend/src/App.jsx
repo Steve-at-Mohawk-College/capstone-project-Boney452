@@ -14,18 +14,17 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Start with false, will set to true only if we have a token
+  const [isLoading, setIsLoading] = useState(!!tokenStorage.get()); // Show loading if we have a token to check
 
 
   // Fetch user info on component mount if token exists and redirect to search
   useEffect(() => {
     if (token && !userInfo) {
-      setIsLoading(true);
       const fetchUserInfo = async () => {
         try {
-          // Reduced timeout to 3 seconds for faster failure
+          // Add timeout to prevent infinite loading
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
           
           const response = await fetch(`${API_BASE_URL}/me`, {
             headers: {
@@ -50,7 +49,7 @@ function App() {
         } catch (error) {
           // Error fetching user info (network error, timeout, etc.)
           console.error("Error fetching user info:", error);
-          // Clear token and show landing page immediately
+          // Clear token and show landing page
           tokenStorage.remove();
           setToken("");
           setCurrentView("landing");
@@ -65,7 +64,6 @@ function App() {
       setIsLoading(false);
     } else if (!token) {
       // No token, show landing page
-      setCurrentView("landing");
       setIsLoading(false);
     }
   }, [token, userInfo]);
@@ -146,16 +144,12 @@ function App() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col items-center space-y-4 w-full">
+          <div className="flex flex-col items-center space-y-4">
             {/* Create New Account Button */}
             <button
               onClick={() => setCurrentView("signup")}
-              className="btn btn-primary text-xl w-full sm:w-auto"
-              style={{ 
-                minWidth: '320px',
-                padding: '1rem 4rem',
-                fontSize: '1.25rem'
-              }}
+              className="btn btn-primary text-xl py-5 px-16 font-medium"
+              style={{ width: 'auto', minWidth: '440px' }}
             >
               Create New Account
             </button>
@@ -163,12 +157,8 @@ function App() {
             {/* Sign In Button */}
             <button
               onClick={() => setCurrentView("login")}
-              className="btn btn-secondary text-xl w-full sm:w-auto"
-              style={{ 
-                minWidth: '320px',
-                padding: '1rem 4rem',
-                fontSize: '1.25rem'
-              }}
+              className="btn btn-secondary text-xl py-5 px-16 font-medium"
+              style={{ width: 'auto', minWidth: '440px' }}
             >
               Sign In
             </button>
@@ -223,7 +213,7 @@ function App() {
     return (
       <div className="dashboard-page w-full">
         {/* Top bar */}
-        <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6">
+        <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button 
               onClick={handleBackToSearch}
@@ -233,17 +223,17 @@ function App() {
             </button>
             <h1 className="header-xl fade-up">Search Results</h1>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="flex gap-3">
             <button 
               onClick={() => setCurrentView("chat")} 
-              className="btn btn-ghost whitespace-nowrap"
+              className="btn btn-ghost"
             >
               💬 Chat
             </button>
             {isAdmin() && (
               <button 
                 onClick={() => setCurrentView("users")} 
-                className="btn btn-ghost whitespace-nowrap"
+                className="btn btn-ghost"
               >
                 Manage Users
               </button>
@@ -255,7 +245,7 @@ function App() {
                 setCurrentView("landing");
                 setUserInfo(null);
               }} 
-              className="btn btn-secondary whitespace-nowrap"
+              className="btn btn-secondary"
             >
               Sign Out
             </button>
@@ -263,14 +253,12 @@ function App() {
         </div>
 
         {/* Search query display */}
-        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="panel fade-up">
-            <div className="text-center">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
-                Restaurants in <span className="text-blue-700">{searchQuery}</span>
-              </h2>
-              <p className="text-sm sm:text-base text-slate-600">Discover amazing dining experiences</p>
-            </div>
+        <div className="w-full max-w-6xl mx-auto panel fade-up">
+          <div className="text-center">
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              Restaurants in <span className="text-blue-700">{searchQuery}</span>
+            </h2>
+            <p className="text-slate-600">Discover amazing dining experiences</p>
           </div>
         </div>
 
