@@ -583,7 +583,24 @@ function UserProfile({ userInfo, onSignOut, onBackToSearch, onProfileUpdate }) {
                   <button 
                     type="submit" 
                     disabled={isLoading || !deletePassword}
-                    className="btn w-full bg-red-600 hover:bg-red-700 text-white"
+                    className="btn w-full text-white font-semibold"
+                    style={{
+                      background: isLoading || !deletePassword 
+                        ? 'linear-gradient(135deg, #dc2626, #b91c1c)' 
+                        : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                      border: 'none',
+                      boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isLoading && deletePassword) {
+                        e.target.style.background = 'linear-gradient(135deg, #dc2626, #b91c1c)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isLoading && deletePassword) {
+                        e.target.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                      }
+                    }}
                     aria-busy={isLoading}
                     aria-live="polite"
                   >
