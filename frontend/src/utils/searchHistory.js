@@ -1,11 +1,38 @@
+/**
+ * Search History Management Module
+ * 
+ * Manages user search history stored in browser localStorage.
+ * Provides per-user search history with automatic deduplication and size limits.
+ * 
+ * @module searchHistory
+ * 
+ * @description
+ * Features:
+ * - Per-user search history (isolated by user ID)
+ * - Automatic deduplication (removes duplicates, keeps most recent)
+ * - Size limit (MAX_HISTORY items per user)
+ * - Backward compatibility (works without user ID)
+ * 
+ * @constant {string} SEARCH_HISTORY_KEY_PREFIX - Prefix for localStorage keys
+ * @constant {number} MAX_HISTORY - Maximum number of search items to store per user
+ */
+
 const SEARCH_HISTORY_KEY_PREFIX = "flavor_quest_search_history";
 const MAX_HISTORY = 3;
 
+/**
+ * Safely accesses localStorage with error handling
+ * 
+ * @returns {Storage|null} localStorage object or null if unavailable
+ * @private
+ */
 const safeLocalStorage = () => {
+  // Check for SSR environment
   if (typeof window === "undefined") return null;
   try {
     return window.localStorage;
   } catch {
+    // Storage may be disabled or quota exceeded
     return null;
   }
 };

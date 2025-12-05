@@ -1,6 +1,26 @@
-import { API_BASE_URL } from "../config";
+/**
+ * Security Utilities Module
+ * 
+ * Comprehensive security functions for protecting against XSS attacks,
+ * input validation, and CSRF token management.
+ * 
+ * @module security
+ * @requires ../config
+ * 
+ * @description
+ * This module provides:
+ * - HTML sanitization and escaping
+ * - Input validation (email, username, password, ratings)
+ * - Content filtering (inappropriate words, spam detection)
+ * - CSRF token management
+ * - Safe DOM manipulation utilities
+ * 
+ * @security
+ * All functions are designed to prevent XSS attacks and validate user input
+ * before sending to the backend or displaying in the UI.
+ */
 
-// Security utilities for frontend XSS protection
+import { API_BASE_URL } from "../config";
 
 /**
  * Sanitize HTML content to prevent XSS attacks

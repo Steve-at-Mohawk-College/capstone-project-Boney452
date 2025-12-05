@@ -1,3 +1,41 @@
+/**
+ * Chat System Component
+ * 
+ * Group-based chat interface for restaurant discussions.
+ * Allows users to create, join, discover, and participate in chat groups.
+ * 
+ * @component
+ * @module ChatSystem
+ * 
+ * @param {Object} userInfo - Current authenticated user information
+ * @param {Function} onSignOut - Callback for user sign out
+ * @param {Function} onBackToSearch - Callback to navigate back to search page
+ * 
+ * @description
+ * Features:
+ * - Group management (create, edit, delete, join, leave)
+ * - Real-time message display
+ * - Message creation and editing
+ * - Content filtering (inappropriate words)
+ * - Group discovery (public groups)
+ * - Message reporting system
+ * - Responsive design
+ * 
+ * @views
+ * - 'groups': List of user's groups
+ * - 'chat': Active chat view for selected group
+ * - 'create-group': Form to create new group
+ * - 'discover': Browse public groups
+ * - 'edit-group': Edit group details (creator only)
+ * 
+ * @security
+ * - All messages sanitized before sending
+ * - Inappropriate content filtering
+ * - CSRF token protection
+ * - Group ownership validation
+ * - Authentication required for all operations
+ */
+
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { sanitizeInput, csrfManager, containsInappropriateContent } from '../utils/security';
@@ -365,27 +403,32 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
 
   return (
     <div className="chat-system">
-      {/* Header */}
-      <div className="chat-header">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+      {/* Header Bar - Back button far left, Sign Out far right */}
+      <div className="bg-white border-b border-gray-200 mb-4 sm:mb-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
             {typeof onBackToSearch === 'function' && (
               <button
                 onClick={onBackToSearch}
-                className="btn btn-ghost text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2"
+                className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
               >
                 ← Back
               </button>
             )}
-            <h1 className="header-xl text-xl sm:text-2xl md:text-3xl">Flavor Quest Chat</h1>
+            <div className="flex-1"></div>
+            <button 
+              onClick={onSignOut}
+              className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
+            >
+              Sign Out
+            </button>
           </div>
-          <button 
-            onClick={onSignOut}
-            className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-1.5 sm:py-2 w-full sm:w-auto"
-          >
-            Sign Out
-          </button>
         </div>
+      </div>
+      
+      {/* Page Header */}
+      <div className="chat-header mb-4 sm:mb-6">
+        <h1 className="header-xl text-xl sm:text-2xl md:text-3xl">Flavor Quest Chat</h1>
       </div>
 
       {/* Navigation */}
@@ -706,7 +749,7 @@ function ChatSystem({ userInfo, onSignOut, onBackToSearch }) {
             <div className="chat-header-info flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
               <button 
                 onClick={() => setCurrentView('groups')}
-                className="btn btn-ghost text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2"
+                className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
               >
                 ← Back
               </button>

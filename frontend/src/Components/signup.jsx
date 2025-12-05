@@ -1,3 +1,33 @@
+/**
+ * Signup Component
+ * 
+ * User registration interface for creating new accounts.
+ * Handles form validation, password confirmation, and account creation.
+ * 
+ * @component
+ * @module Signup
+ * 
+ * @param {Function} onSignupSuccess - Callback when signup succeeds
+ * @param {Function} onSwitchToLogin - Callback to navigate to login page
+ * @param {Function} onBackToLanding - Callback to navigate back to landing page
+ * 
+ * @description
+ * Features:
+ * - Username validation (3-50 chars, alphanumeric with underscores/hyphens)
+ * - Email format validation
+ * - Password strength validation (8+ chars, uppercase, lowercase, number)
+ * - Password confirmation matching
+ * - Input sanitization for security
+ * - CSRF token protection
+ * - Loading states and error handling
+ * 
+ * @security
+ * - All inputs sanitized before submission
+ * - Password requirements enforced
+ * - CSRF tokens required for account creation
+ * - Email normalized (lowercase, trimmed)
+ */
+
 import { useState } from "react";
 import axios from "axios";
 import { sanitizeInput, validateEmail, validateUsername, validatePassword, csrfManager } from "../utils/security";

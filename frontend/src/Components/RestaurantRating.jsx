@@ -1,3 +1,37 @@
+/**
+ * Restaurant Rating Component
+ * 
+ * Interface for users to rate and review restaurants.
+ * Supports both full and compact display modes.
+ * 
+ * @component
+ * @module RestaurantRating
+ * 
+ * @param {number} restaurantId - Unique identifier for the restaurant
+ * @param {string} restaurantName - Name of the restaurant
+ * @param {Function} onRatingUpdate - Callback when rating is submitted/updated
+ * @param {boolean} isCompact - Whether to display in compact mode (default: false)
+ * @param {Object} searchResultData - Pre-loaded restaurant data from search results
+ * @param {Function} onRatingDataUpdate - Callback to update rating data in parent
+ * 
+ * @description
+ * Features:
+ * - Star-based rating system (1-5 stars)
+ * - Text review input with character limit
+ * - Display existing user rating and review
+ * - View all ratings for the restaurant
+ * - Delete own rating
+ * - Report inappropriate reviews
+ * - Content filtering (inappropriate words)
+ * 
+ * @security
+ * - All inputs sanitized before submission
+ * - Content filtering for inappropriate words
+ * - CSRF token protection
+ * - Rating validation (1-5 integer)
+ * - Review text length limits
+ */
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { sanitizeInput, validateRating, sanitizeRestaurantData, csrfManager, containsInappropriateContent } from "../utils/security";

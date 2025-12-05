@@ -1,3 +1,38 @@
+/**
+ * Restaurant Search Component
+ * 
+ * Main search interface for finding restaurants by city name.
+ * Integrates with Google Places API and displays results in interactive flip cards.
+ * 
+ * @component
+ * @module RestaurantSearch
+ * 
+ * @param {Object} userInfo - Current authenticated user information
+ * @param {Function} onSignOut - Callback for user sign out
+ * @param {Function} onManageUsers - Callback to navigate to user management (admin only)
+ * @param {Function} onOpenChat - Callback to navigate to chat system
+ * @param {Function} onOpenProfile - Callback to navigate to user profile
+ * @param {boolean} isAdmin - Whether current user has admin privileges
+ * 
+ * @description
+ * Features:
+ * - City-based restaurant search via Google Places API
+ * - Search history tracking (per user, max 3 items)
+ * - Interactive restaurant flip cards with ratings
+ * - Top-right navigation buttons (Chat, Profile, Manage Users, Sign Out)
+ * - Error handling and loading states
+ * - Responsive design (mobile-first)
+ * 
+ * @api
+ * - GET /api/restaurants/search?city={city} - Search restaurants
+ * - GET /api/restaurants/{place_id} - Get restaurant details
+ * 
+ * @security
+ * - All search queries sanitized
+ * - Authentication required for search history
+ * - Error boundaries prevent crashes
+ */
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import RestaurantFlipCard from "./RestaurantFlipCard";

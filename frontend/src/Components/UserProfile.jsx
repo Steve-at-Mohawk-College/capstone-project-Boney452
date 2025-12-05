@@ -1,3 +1,35 @@
+/**
+ * User Profile Component
+ * 
+ * User account management interface allowing users to:
+ * - Update username
+ * - Change password
+ * - Delete account
+ * 
+ * @component
+ * @module UserProfile
+ * 
+ * @param {Object} userInfo - Current authenticated user information
+ * @param {Function} onSignOut - Callback for user sign out
+ * @param {Function} onBackToSearch - Callback to navigate back to search page
+ * @param {Function} onProfileUpdate - Callback when profile is updated, receives updated user info
+ * 
+ * @description
+ * Features:
+ * - Tab-based interface (Username, Password, Delete Account)
+ * - Form validation (username format, password strength)
+ * - Password confirmation for security
+ * - Account deletion with password confirmation
+ * - CSRF token protection
+ * - Loading states and error handling
+ * 
+ * @security
+ * - All inputs sanitized before submission
+ * - Password required for account deletion
+ * - CSRF tokens for state-changing operations
+ * - Current password required for password changes
+ */
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
@@ -297,28 +329,34 @@ function UserProfile({ userInfo, onSignOut, onBackToSearch, onProfileUpdate }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start px-4 sm:px-6 py-6 sm:py-10 bg-transparent">
-      {/* Header */}
-      <div className="w-full max-w-4xl mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Bar - Back button far left, Sign Out far right */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-2">
             {typeof onBackToSearch === 'function' && (
               <button
                 onClick={onBackToSearch}
-                className="btn btn-ghost text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2"
+                className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
               >
                 ← Back
               </button>
             )}
-            <h1 className="header-xl text-2xl sm:text-3xl md:text-4xl">My Profile</h1>
+            <div className="flex-1"></div>
+            <button 
+              onClick={onSignOut}
+              className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
+            >
+              Sign Out
+            </button>
           </div>
-          <button 
-            onClick={onSignOut}
-            className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 w-full sm:w-auto"
-          >
-            Sign Out
-          </button>
         </div>
+      </div>
+
+      {/* Main Container */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+        {/* Page Title */}
+        <h1 className="header-xl text-2xl sm:text-3xl md:text-4xl mb-4 sm:mb-6">My Profile</h1>
 
         {/* User Info Card */}
         <div className="glass p-4 sm:p-6 rounded-lg border border-slate-200/70 mb-4 sm:mb-6">

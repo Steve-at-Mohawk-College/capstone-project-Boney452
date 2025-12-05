@@ -1,7 +1,32 @@
 #!/usr/bin/env python3
 """
 OWASP ZAP Full Security Scan Script
-Runs all tests automatically and generates combined report
+
+Automates comprehensive security testing using OWASP ZAP (Zed Attack Proxy).
+Performs full security scans and generates combined HTML, XML, and JSON reports.
+
+@module zap_full_scan
+@author Flavor Quest Development Team
+@version 1.0.0
+
+DESCRIPTION:
+This script automates the following security testing:
+- Spider crawling (discover all pages)
+- Active scan (test for vulnerabilities)
+- Report generation (HTML, XML, JSON)
+
+REQUIREMENTS:
+- OWASP ZAP must be running in daemon mode on localhost:8080
+- Python requests library
+- Target URL must be accessible
+
+USAGE:
+    python zap_full_scan.py
+
+OUTPUT:
+- HTML report: zap_security_report.html
+- XML report: zap_security_report.xml
+- JSON report: zap_security_report.json
 """
 
 import time
@@ -10,13 +35,32 @@ import json
 from datetime import datetime
 import sys
 
+# ============================================================================
 # Configuration
+# ============================================================================
+
+# OWASP ZAP daemon URL (must be running)
 ZAP_URL = "http://localhost:8080"
+
+# Target application URL to scan
 TARGET_URL = "https://flavour-quest-e7ho.onrender.com"
-API_KEY = None  # Set if API key is enabled
+
+# ZAP API key (set if API key authentication is enabled)
+API_KEY = None
+
+# ============================================================================
+# ZAP API Communication
+# ============================================================================
 
 def zap_request(endpoint, params=None):
-    """Make request to ZAP API"""
+    """
+    Make HTTP request to OWASP ZAP API
+    
+    @param {str} endpoint - ZAP API endpoint (e.g., '/JSON/spider/action/scan/')
+    @param {dict} params - Query parameters for the request
+    @returns {Response} HTTP response object
+    @raises {requests.RequestException} If request fails
+    """
     url = f"{ZAP_URL}{endpoint}"
     if API_KEY:
         params = params or {}

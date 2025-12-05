@@ -1,3 +1,58 @@
+"""
+Flavor Quest Backend API Server
+
+Flask-based REST API server providing backend services for the Flavor Quest
+restaurant discovery and rating application.
+
+@module app
+@author Flavor Quest Development Team
+@version 1.0.0
+
+DESCRIPTION:
+This module implements a comprehensive REST API with the following features:
+- User authentication and authorization (JWT tokens)
+- Restaurant search and management (Google Places API integration)
+- User rating and review system
+- Group-based chat system
+- Admin user management
+- Content filtering and moderation
+- Security features (CSRF protection, rate limiting, input sanitization)
+
+SECURITY FEATURES:
+- Argon2 password hashing (resistant to timing attacks)
+- JWT token-based authentication with expiration
+- CSRF token protection for state-changing operations
+- Input sanitization (XSS and SQL injection prevention)
+- Content filtering (inappropriate words, spam detection)
+- Rate limiting on authentication endpoints
+- CORS configuration for frontend access
+- Security headers (CSP, X-Frame-Options, etc.)
+
+DATABASE:
+- PostgreSQL database connection via psycopg2
+- Automatic schema migration on startup
+- Connection pooling and error handling
+
+API ENDPOINTS:
+- Authentication: /signup, /login, /me
+- Restaurants: /api/restaurants/search, /api/restaurants/<place_id>
+- Ratings: /api/restaurants/<place_id>/rate
+- Chat: /api/groups, /api/groups/<id>/messages
+- Admin: /admin/users (CRUD operations)
+
+DEPLOYMENT:
+- Configured for Render.com deployment
+- Uses Gunicorn WSGI server
+- Environment variable configuration
+- Auto-migration on startup
+
+@requires Flask>=2.0.0
+@requires psycopg2-binary
+@requires argon2-cffi
+@requires flask-cors
+@requires itsdangerous
+"""
+
 import psycopg2
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -11,11 +66,19 @@ import html
 from datetime import datetime
 from functools import wraps
 
-# -----------------------------
+# ============================================================================
 # Security Utilities
-# -----------------------------
+# ============================================================================
 
-# Inappropriate words filter
+"""
+Inappropriate Content Filter
+
+List of words and phrases that are considered inappropriate for user-generated
+content. Used to filter reviews, messages, and other user inputs.
+
+@constant {list} INAPPROPRIATE_WORDS - List of inappropriate words/phrases
+@note Includes variations with asterisks to catch attempts to bypass filters
+"""
 INAPPROPRIATE_WORDS = [
     # Spam and fraud related
     'spam', 'scam', 'fake', 'fraud', 'hate', 'violence',
@@ -31,7 +94,22 @@ INAPPROPRIATE_WORDS = [
 ]
 
 def contains_inappropriate_content(text):
-    """Check if text contains inappropriate words"""
+    """
+    Check if text contains inappropriate content
+    
+    Validates user input against inappropriate words list and spam patterns.
+    Detects:
+    - Inappropriate words (whole word matching)
+    - Excessive capitalization (>70% caps)
+    - Excessive word repetition (>50% same word)
+    
+    @param {str} text - Text to validate
+    @returns {bool} True if inappropriate content detected, False otherwise
+    
+    @security
+    This function helps prevent spam and inappropriate content from being
+    stored in the database or displayed to other users.
+    """
     if not text or not isinstance(text, str):
         return False
     
@@ -66,7 +144,27 @@ def contains_inappropriate_content(text):
     return False
 
 def sanitize_input(text, max_length=1000):
-    """Sanitize user input to prevent XSS and SQL injection"""
+    """
+    Sanitize user input to prevent XSS and SQL injection attacks
+    
+    Applies multiple layers of security:
+    1. HTML escaping to prevent XSS
+    2. SQL injection pattern removal
+    3. Dangerous character removal
+    4. Length limiting
+    
+    @param {str} text - User input to sanitize
+    @param {int} max_length - Maximum allowed length (default: 1000)
+    @returns {str} Sanitized text safe for database storage and display
+    
+    @security
+    This is a critical security function. All user inputs should be
+    sanitized before being stored in the database or displayed in HTML.
+    
+    @warning
+    This function is not a substitute for parameterized queries.
+    Always use parameterized queries for database operations.
+    """
     if not text:
         return ""
     
@@ -96,7 +194,16 @@ def sanitize_input(text, max_length=1000):
     return text.strip()
 
 def validate_email(email):
-    """Validate email format"""
+    """
+    Validate email address format
+    
+    @param {str} email - Email address to validate
+    @returns {bool} True if email format is valid, False otherwise
+    
+    @example
+    validate_email("user@example.com")  # Returns True
+    validate_email("invalid-email")      # Returns False
+    """
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
@@ -150,7 +257,27 @@ def _build_connection_url():
     return dsn
 
 def get_db_connection():
-    """Establish a database connection using the configured URL."""
+    """
+    Establish a database connection using the configured URL
+    
+    Creates a new PostgreSQL connection using connection parameters from
+    environment variables or default values. Handles connection errors gracefully.
+    
+    @returns {psycopg2.connection} Database connection object
+    @raises {psycopg2.Error} If connection fails
+    
+    @note
+    Connection should be closed after use:
+    conn = get_db_connection()
+    try:
+        # Use connection
+    finally:
+        conn.close()
+    
+    @security
+    Uses parameterized queries via cursor.execute() to prevent SQL injection.
+    Never use string formatting for SQL queries.
+    """
     dsn = _build_connection_url()
     try:
         return psycopg2.connect(dsn)
@@ -159,7 +286,19 @@ def get_db_connection():
         raise
 
 def get_photo_url(photo_reference, max_width=400):
-    """Generate a photo URL from Google Places photo reference"""
+    """
+    Generate a photo URL from Google Places photo reference
+    
+    Constructs a valid Google Places Photo API URL using the photo reference
+    and API key. Used to display restaurant images.
+    
+    @param {str} photo_reference - Google Places photo reference ID
+    @param {int} max_width - Maximum width of the photo in pixels (default: 400)
+    @returns {str|None} Photo URL or None if photo_reference is invalid
+    
+    @api
+    Requires GOOGLE_MAPS_API_KEY environment variable to be set.
+    """
     if not photo_reference:
         return None
     
@@ -183,7 +322,25 @@ CORS(app)
 # Security headers
 @app.after_request
 def after_request(response):
-    """Add security headers to all responses"""
+    """
+    Add security headers to all HTTP responses
+    
+    Implements multiple security headers to protect against common web
+    vulnerabilities:
+    - X-Content-Type-Options: Prevents MIME type sniffing
+    - X-Frame-Options: Prevents clickjacking attacks
+    - X-XSS-Protection: Enables browser XSS filter
+    - Strict-Transport-Security: Forces HTTPS connections
+    - Content-Security-Policy: Restricts resource loading
+    - Referrer-Policy: Controls referrer information
+    
+    @param {Response} response - Flask response object
+    @returns {Response} Modified response with security headers
+    
+    @security
+    This middleware runs on every response, ensuring all endpoints
+    have proper security headers regardless of route implementation.
+    """
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'

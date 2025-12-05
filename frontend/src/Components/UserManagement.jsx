@@ -1,10 +1,49 @@
+/**
+ * User Management Component (Admin Only)
+ * 
+ * Administrative interface for managing user accounts.
+ * Allows admins to view, create, update, and delete user accounts.
+ * 
+ * @component
+ * @module UserManagement
+ * 
+ * @param {Function} onSignOut - Callback for user sign out
+ * @param {Function} onBackToSearch - Callback to navigate back to search page
+ * 
+ * @description
+ * Features:
+ * - User list with pagination
+ * - Create new user accounts
+ * - Edit existing user accounts
+ * - Delete user accounts
+ * - Admin role management
+ * - User avatar generation
+ * - Search and filter functionality
+ * 
+ * @security
+ * - Admin-only access (enforced by backend)
+ * - CSRF token protection
+ * - Input validation and sanitization
+ * 
+ * @subcomponent Avatar
+ * Generates colored avatar circles with user initials
+ */
+
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../config";
 import { csrfManager } from "../utils/security";
 import { tokenStorage } from "../utils/tokenStorage";
 
-// Avatar Component
+/**
+ * Avatar Component
+ * 
+ * Generates a colored circular avatar with user initials.
+ * Color is deterministically generated from the name.
+ * 
+ * @param {string} name - User's name for initials
+ * @param {number} size - Avatar size in pixels (default: 48)
+ */
 function Avatar({ name, size = 48 }) {
   const getInitials = (name) => {
     if (!name) return "?";

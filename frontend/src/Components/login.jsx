@@ -1,3 +1,31 @@
+/**
+ * Login Component
+ * 
+ * User authentication interface for existing users to sign in to their accounts.
+ * Handles form validation, API communication, and token storage.
+ * 
+ * @component
+ * @module Login
+ * 
+ * @param {Function} onLoginSuccess - Callback when login succeeds, receives JWT token
+ * @param {Function} onSwitchToSignup - Callback to navigate to signup page
+ * @param {Function} onBackToLanding - Callback to navigate back to landing page
+ * 
+ * @description
+ * Features:
+ * - Email format validation
+ * - Case-insensitive email handling
+ * - Input sanitization for security
+ * - Loading states and error handling
+ * - Accessible form with ARIA labels
+ * 
+ * @security
+ * - All inputs are sanitized before submission
+ * - Email is normalized (lowercase, trimmed)
+ * - Password is never logged or exposed
+ * - Tokens stored in sessionStorage (cleared on browser close)
+ */
+
 import { useState } from "react";
 import axios from "axios";
 import { sanitizeInput, validateEmail } from "../utils/security";

@@ -1,3 +1,38 @@
+/**
+ * Main Application Component
+ * 
+ * This is the root component of the Flavor Quest application. It manages:
+ * - Application routing and view state
+ * - User authentication and session management
+ * - Global application state (user info, search results, etc.)
+ * - Navigation between different views (landing, login, search, profile, etc.)
+ * 
+ * @component
+ * @module App
+ * 
+ * @description
+ * The App component uses a view-based routing system (not React Router) to manage
+ * different application states. It handles authentication token validation on mount
+ * and provides callback functions for child components to update application state.
+ * 
+ * @state {string} currentView - Current application view/route
+ *   Possible values: "landing", "login", "signup", "search", "results", "chat", "profile", "users"
+ * @state {string} token - Authentication token from session storage
+ * @state {Object|null} userInfo - Current user information object
+ * @state {Array} searchResults - Array of restaurant search results
+ * @state {string} searchQuery - Current search query string
+ * @state {boolean} isLoading - Loading state for authentication check
+ * 
+ * @security
+ * - Tokens are stored in sessionStorage (cleared on browser close)
+ * - Invalid tokens are automatically cleared
+ * - Authentication checks have timeout protection (3 seconds)
+ * 
+ * @performance
+ * - Uses AbortController for request cancellation
+ * - Prevents unnecessary re-renders with proper dependency arrays
+ */
+
 import { useState, useEffect } from "react";
 import Login from "./Components/login";
 import Signup from "./Components/signup";
@@ -9,15 +44,50 @@ import { API_BASE_URL } from "./config";
 import { tokenStorage } from "./utils/tokenStorage";
 
 function App() {
-  const [currentView, setCurrentView] = useState("landing"); // "landing", "login", "signup", "search", "results", "chat"
+  // ============================================================================
+  // State Management
+  // ============================================================================
+  
+  /** Current application view/route */
+  const [currentView, setCurrentView] = useState("landing");
+  
+  /** Authentication token from session storage */
   const [token, setToken] = useState(tokenStorage.get());
+  
+  /** Current authenticated user information */
   const [userInfo, setUserInfo] = useState(null);
+  
+  /** Array of restaurant search results */
   const [searchResults, setSearchResults] = useState([]);
+  
+  /** Current search query string */
   const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false); // Start with false
+  
+  /** Loading state for authentication validation */
+  const [isLoading, setIsLoading] = useState(false);
 
+  // ============================================================================
+  // Authentication & User Management
+  // ============================================================================
 
-  // Fetch user info on component mount if token exists and redirect to search
+  /**
+   * Validates authentication token on component mount
+   * 
+   * If a token exists in session storage, this effect:
+   * 1. Fetches user information from the API
+   * 2. Validates the token is still valid
+   * 3. Redirects to search page if authenticated
+   * 4. Clears invalid tokens and shows landing page
+   * 
+   * @effect
+   * @dependencies {string} token - Authentication token
+   * @dependencies {Object} userInfo - User information object
+   * 
+   * @security
+   * - Uses AbortController with 3-second timeout to prevent hanging requests
+   * - Automatically clears invalid or expired tokens
+   * - Handles network errors gracefully
+   */
   useEffect(() => {
     if (token && !userInfo) {
       setIsLoading(true);
@@ -70,6 +140,14 @@ function App() {
     }
   }, [token, userInfo]);
 
+  /**
+   * Handles successful user login
+   * 
+   * Stores the authentication token, fetches user information (including admin status),
+   * and navigates to the search page.
+   * 
+   * @param {string} newToken - JWT authentication token from login response
+   */
   const handleLoginSuccess = async (newToken) => {
     tokenStorage.set(newToken);
     setToken(newToken);
@@ -86,38 +164,76 @@ function App() {
         setUserInfo(data.user);
       }
     } catch (error) {
+      // Silently fail - user info will be fetched on next mount
     }
     
     // Navigate to search page after login
     setCurrentView("search");
   };
 
+  /**
+   * Handles successful user signup
+   * 
+   * Redirects user to login page after successful account creation.
+   */
   const handleSignupSuccess = () => {
     setCurrentView("login");
   };
 
+  /**
+   * Handles restaurant search results
+   * 
+   * Stores search results and query, then navigates to results view.
+   * 
+   * @param {Array} results - Array of restaurant objects from search
+   * @param {string} query - Search query string
+   */
   const handleSearchResults = (results, query) => {
     setSearchResults(results);
     setSearchQuery(query);
     setCurrentView("results");
   };
 
+  /**
+   * Navigates back to search page
+   * 
+   * Used by child components to return to the main search interface.
+   */
   const handleBackToSearch = () => {
     setCurrentView("search");
   };
 
+  /**
+   * Updates user information in application state
+   * 
+   * Called when user profile is updated to keep application state in sync.
+   * 
+   * @param {Object} updatedUserInfo - Updated user information object
+   */
   const handleProfileUpdate = (updatedUserInfo) => {
     setUserInfo(updatedUserInfo);
   };
 
-  // Check if current user is an admin
+  /**
+   * Checks if current user has admin privileges
+   * 
+   * @returns {boolean} True if user is authenticated and has admin role
+   */
   const isAdmin = () => {
     if (!userInfo) return false;
-    // Check is_admin from database
     return userInfo.IsAdmin === true;
   };
 
-  // Loading screen while checking authentication
+  // ============================================================================
+  // View Rendering
+  // ============================================================================
+
+  /**
+   * Loading View
+   * 
+   * Displays while validating authentication token on mount.
+   * Provides accessibility features for screen readers.
+   */
   if (isLoading) {
     return (
       <div className="auth-page">
@@ -133,7 +249,12 @@ function App() {
     );
   }
 
-  // Landing Page
+  /**
+   * Landing Page View
+   * 
+   * First page users see when not authenticated.
+   * Provides options to create account or sign in.
+   */
   if (currentView === "landing") {
     return (
       <div className="auth-page">
@@ -170,7 +291,11 @@ function App() {
     );
   }
 
-  // Login or Signup pages
+  /**
+   * Authentication Views (Login/Signup)
+   * 
+   * Conditionally renders login or signup form based on current view.
+   */
   if (currentView === "login" || currentView === "signup") {
     return (
       <>
@@ -191,7 +316,12 @@ function App() {
     );
   }
 
-  // Search Page (after login)
+  /**
+   * Search Page View
+   * 
+   * Main application interface after authentication.
+   * Allows users to search for restaurants and access other features.
+   */
   if (currentView === "search") {
     return (
       <RestaurantSearch
@@ -210,22 +340,34 @@ function App() {
     );
   }
 
-  // Results Page
+  /**
+   * Search Results View
+   * 
+   * Displays restaurant search results with navigation options.
+   * Shows search query and provides access to chat and user management.
+   */
   if (currentView === "results") {
     return (
       <div className="dashboard-page w-full">
-        {/* Top bar */}
-        <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={handleBackToSearch}
-              className="btn btn-ghost"
-            >
-              ← Back to Search
-            </button>
-            <h1 className="header-xl fade-up">Search Results</h1>
+        {/* Header Bar - Back button far left */}
+        <div className="bg-white border-b border-gray-200 mb-4 sm:mb-6">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <button 
+                onClick={handleBackToSearch}
+                className="btn btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2"
+              >
+                ← Back
+              </button>
+              <div className="flex-1"></div>
+            </div>
           </div>
-          <div className="flex gap-3">
+        </div>
+        
+        {/* Page Content */}
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6">
+          <h1 className="header-xl fade-up mb-6">Search Results</h1>
+          <div className="flex items-center justify-end gap-3 mb-6">
             <button 
               onClick={() => setCurrentView("chat")} 
               className="btn btn-ghost"
@@ -252,10 +394,9 @@ function App() {
               Sign Out
             </button>
           </div>
-        </div>
 
-        {/* Search query display */}
-        <div className="w-full max-w-6xl mx-auto panel fade-up">
+          {/* Search query display */}
+          <div className="w-full max-w-6xl mx-auto panel fade-up">
           <div className="text-center">
             <h2 className="text-xl font-bold text-slate-900 mb-2">
               Restaurants in <span className="text-blue-700">{searchQuery}</span>
@@ -264,25 +405,33 @@ function App() {
           </div>
         </div>
 
-        {/* Restaurant results */}
-        <div className="w-full max-w-6xl mx-auto mt-8 fade-up">
-          <RestaurantSearch 
-            userInfo={userInfo}
-            onSignOut={() => {
-              tokenStorage.remove();
-              setToken("");
-              setCurrentView("landing");
-              setUserInfo(null);
-            }}
-            initialQuery={searchQuery}
-            onSearchResults={handleSearchResults}
-          />
+          {/* Restaurant results */}
+          <div className="w-full max-w-6xl mx-auto mt-8 fade-up">
+            <RestaurantSearch 
+              userInfo={userInfo}
+              onSignOut={() => {
+                tokenStorage.remove();
+                setToken("");
+                setCurrentView("landing");
+                setUserInfo(null);
+              }}
+              initialQuery={searchQuery}
+              onSearchResults={handleSearchResults}
+            />
+          </div>
         </div>
       </div>
     );
   }
 
-  // User Management Page (Admin only)
+  /**
+   * User Management View (Admin Only)
+   * 
+   * Administrative interface for managing user accounts.
+   * Only accessible to users with admin privileges.
+   * 
+   * @security Requires admin authentication check
+   */
   if (currentView === "users" && isAdmin()) {
     return (
       <div className="w-full">
@@ -299,7 +448,12 @@ function App() {
     );
   }
 
-  // Chat Page
+  /**
+   * Chat System View
+   * 
+   * Group-based chat interface for restaurant discussions.
+   * Allows users to create, join, and participate in chat groups.
+   */
   if (currentView === "chat") {
     return (
       <ChatSystem
@@ -315,7 +469,12 @@ function App() {
     );
   }
 
-  // Profile Page
+  /**
+   * User Profile View
+   * 
+   * User account management interface.
+   * Allows users to update username, change password, and delete account.
+   */
   if (currentView === "profile") {
     return (
       <UserProfile
@@ -332,7 +491,12 @@ function App() {
     );
   }
 
-  // Fallback - redirect to landing
+  /**
+   * Fallback View
+   * 
+   * Default view if no valid route matches.
+   * Provides navigation back to landing page.
+   */
   return (
     <div className="auth-page">
       <div className="w-full max-w-lg panel fade-up text-center">

@@ -1,8 +1,47 @@
+/**
+ * Restaurant Flip Card Component
+ * 
+ * Interactive card component displaying restaurant information with a flip animation.
+ * Shows restaurant details on the front and rating interface on the back.
+ * 
+ * @component
+ * @module RestaurantFlipCard
+ * 
+ * @param {Object} restaurant - Restaurant data object
+ * @param {Function} onRatingUpdate - Callback when restaurant rating is updated
+ * 
+ * @description
+ * Features:
+ * - 3D flip animation on click/hover
+ * - Restaurant image display
+ * - Star ratings visualization
+ * - Price level indicators
+ * - Google Maps integration
+ * - Responsive design
+ * - Error boundary protection
+ * 
+ * @subcomponents
+ * - Star: SVG star icon for ratings
+ * - Dollar: SVG dollar icon for price levels
+ * 
+ * @security
+ * - All restaurant data sanitized before display
+ * - Safe image URL handling
+ * - XSS prevention via sanitization
+ */
+
 import { useState } from "react";
 import RestaurantRating from "./RestaurantRating";
 import { sanitizeRestaurantData } from "../utils/security";
 
-/* Inline SVG icons (no emoji) */
+/**
+ * Star Icon Component
+ * 
+ * SVG star icon that can be filled or empty for rating display.
+ * 
+ * @param {boolean} filled - Whether the star should be filled
+ * @param {string} className - Additional CSS classes
+ */
 const Star = ({ filled = false, className = "" }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true"
        className={`${className} ${filled ? "fill-yellow-400 stroke-yellow-400" : "fill-transparent stroke-slate-300"}`}
@@ -11,6 +50,13 @@ const Star = ({ filled = false, className = "" }) => (
   </svg>
 );
 
+/**
+ * Dollar Icon Component
+ * 
+ * SVG dollar sign icon for price level indicators.
+ * 
+ * @param {string} className - Additional CSS classes
+ */
 const Dollar = ({ className = "" }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18"
        className={`${className} stroke-emerald-600`} strokeWidth="1.8" fill="none">
@@ -18,7 +64,18 @@ const Dollar = ({ className = "" }) => (
   </svg>
 );
 
-/* Helpers */
+/**
+ * Helper Functions
+ * 
+ * Utility functions for rendering restaurant information.
+ */
+
+/**
+ * Renders star rating visualization
+ * 
+ * @param {number|string} value - Rating value (1-5)
+ * @returns {JSX.Element} Star rating display
+ */
 const renderStars = (value) => {
   try {
     const v = Math.round(Number(value) || 0);
