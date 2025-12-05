@@ -144,12 +144,16 @@ function App() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col items-center space-y-4">
+          <div className="flex flex-col items-center space-y-4 w-full">
             {/* Create New Account Button */}
             <button
               onClick={() => setCurrentView("signup")}
-              className="btn btn-primary text-xl py-5 px-16 font-medium"
-              style={{ width: 'auto', minWidth: '440px' }}
+              className="btn btn-primary text-xl w-full sm:w-auto"
+              style={{ 
+                minWidth: '320px',
+                padding: '1rem 4rem',
+                fontSize: '1.25rem'
+              }}
             >
               Create New Account
             </button>
@@ -157,8 +161,12 @@ function App() {
             {/* Sign In Button */}
             <button
               onClick={() => setCurrentView("login")}
-              className="btn btn-secondary text-xl py-5 px-16 font-medium"
-              style={{ width: 'auto', minWidth: '440px' }}
+              className="btn btn-secondary text-xl w-full sm:w-auto"
+              style={{ 
+                minWidth: '320px',
+                padding: '1rem 4rem',
+                fontSize: '1.25rem'
+              }}
             >
               Sign In
             </button>
@@ -213,7 +221,7 @@ function App() {
     return (
       <div className="dashboard-page w-full">
         {/* Top bar */}
-        <div className="w-full max-w-6xl mx-auto flex items-center justify-between mb-6">
+        <div className="w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0 mb-6">
           <div className="flex items-center gap-4">
             <button 
               onClick={handleBackToSearch}
@@ -223,17 +231,17 @@ function App() {
             </button>
             <h1 className="header-xl fade-up">Search Results</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
             <button 
               onClick={() => setCurrentView("chat")} 
-              className="btn btn-ghost"
+              className="btn btn-ghost whitespace-nowrap"
             >
               💬 Chat
             </button>
             {isAdmin() && (
               <button 
                 onClick={() => setCurrentView("users")} 
-                className="btn btn-ghost"
+                className="btn btn-ghost whitespace-nowrap"
               >
                 Manage Users
               </button>
@@ -245,7 +253,7 @@ function App() {
                 setCurrentView("landing");
                 setUserInfo(null);
               }} 
-              className="btn btn-secondary"
+              className="btn btn-secondary whitespace-nowrap"
             >
               Sign Out
             </button>
@@ -253,12 +261,14 @@ function App() {
         </div>
 
         {/* Search query display */}
-        <div className="w-full max-w-6xl mx-auto panel fade-up">
-          <div className="text-center">
-            <h2 className="text-xl font-bold text-slate-900 mb-2">
-              Restaurants in <span className="text-blue-700">{searchQuery}</span>
-            </h2>
-            <p className="text-slate-600">Discover amazing dining experiences</p>
+        <div className="w-full max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="panel fade-up">
+            <div className="text-center">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 mb-2">
+                Restaurants in <span className="text-blue-700">{searchQuery}</span>
+              </h2>
+              <p className="text-sm sm:text-base text-slate-600">Discover amazing dining experiences</p>
+            </div>
           </div>
         </div>
 

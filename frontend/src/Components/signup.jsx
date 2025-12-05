@@ -111,7 +111,7 @@ const Signup = ({ onSignupSuccess, onSwitchToLogin, onBackToLanding }) => {
               value={formData.password}
               onChange={handleChange}
               className="input"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters with uppercase, lowercase, and number"
             />
           </div>
 

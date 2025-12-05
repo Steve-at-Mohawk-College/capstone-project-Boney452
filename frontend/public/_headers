@@ -1,0 +1,16 @@
+/*
+  # Security Headers
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
+  
+  # Content Security Policy (Production)
+  # Secure CSP for React/Vite production builds
+  # 'strict-dynamic' allows scripts loaded by trusted scripts (React/Vite bundles)
+  # 'unsafe-eval' REMOVED for security (not needed in production builds)
+  # 'unsafe-inline' removed from script-src for security
+  # 'unsafe-inline' kept for style-src (needed for TailwindCSS - acceptable for styles)
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'strict-dynamic'; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https: blob:; font-src 'self' data: https:; connect-src 'self' https://maps.googleapis.com https://flavour-quest-e7ho.onrender.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+

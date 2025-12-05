@@ -390,9 +390,9 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                   <textarea
                     id="reviewText"
                     value={reviewText}
-                    onChange={(e) => setReviewText(sanitizeInput(e.target.value, 1000))}
+                    onChange={(e) => setReviewText(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full p-3 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300"
+                    className="w-full p-3 sm:p-4 border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300 text-base min-h-[100px]"
                     rows="3"
                     placeholder="Share your experience..."
                     aria-describedby={error ? "rating-error" : undefined}
@@ -412,12 +412,12 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                   </div>
                 )}
                 
-                <div className="flex space-x-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:space-x-3 sm:gap-0">
                   <button
                     type="submit"
                     disabled={isSubmitting}
                     onClick={(e) => e.stopPropagation()}
-                    className="btn btn-primary flex-1"
+                    className="btn btn-primary flex-1 w-full sm:w-auto min-h-[44px]"
                     style={{ 
                       background: "linear-gradient(135deg, #10B981, #059669)",
                       opacity: isSubmitting ? 0.6 : 1
@@ -434,7 +434,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                       e.stopPropagation();
                       setShowRatingForm(false);
                     }}
-                    className="btn btn-secondary"
+                    className="btn btn-secondary w-full sm:w-auto min-h-[44px]"
                   >
                     Cancel
                   </button>
@@ -524,7 +524,7 @@ function RestaurantRating({ restaurantId, restaurantName, onRatingUpdate, isComp
                 <label className={`block ${isCompact ? 'text-xs' : 'text-sm'} font-semibold text-slate-700 ${isCompact ? 'mb-1' : 'mb-2'}`}>Review (Optional):</label>
                 <textarea
                   value={reviewText}
-                  onChange={(e) => setReviewText(sanitizeInput(e.target.value, 1000))}
+                  onChange={(e) => setReviewText(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                   className={`w-full ${isCompact ? 'p-2' : 'p-3'} border-2 border-slate-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300`}
                   rows={isCompact ? "2" : "3"}

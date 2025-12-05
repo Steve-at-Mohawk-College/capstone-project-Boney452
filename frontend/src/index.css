@@ -401,18 +401,442 @@ body::before{
 .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .md\:grid-cols-\[1fr_auto\] { grid-template-columns: 1fr auto; }
 
+/* ===========================
+   Mobile-First Responsive Design
+   =========================== */
+
+/* Base: Mobile (320px+) - Default styles are mobile-first */
+/* Small: Tablet (640px+) */
+/* Medium: Desktop (768px+) */
+/* Large: Large Desktop (1024px+) */
+/* XL: Extra Large (1280px+) */
+
 /* Responsive breakpoints */
 @media (min-width: 640px) {
   .sm\:flex-row { flex-direction: row; }
   .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sm\:w-\[70\%\] { width: 70%; }
+  .sm\:w-\[60\%\] { width: 60%; }
+  .sm\:w-auto { width: auto; }
+  .sm\:text-base { font-size: 1rem; }
+  .sm\:text-lg { font-size: 1.125rem; }
+  .sm\:px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+  .sm\:py-4 { padding-top: 1rem; padding-bottom: 1rem; }
 }
 
 @media (min-width: 768px) {
   .md\:grid-cols-\[1fr_auto\] { grid-template-columns: 1fr auto; }
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .md\:w-\[60\%\] { width: 60%; }
+  .md\:text-xl { font-size: 1.25rem; }
+  .md\:p-8 { padding: 2rem; }
+  .md\:p-12 { padding: 3rem; }
 }
 
 @media (min-width: 1024px) {
   .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .lg\:text-2xl { font-size: 1.5rem; }
+}
+
+/* ===========================
+   MOBILE-ONLY IMPROVEMENTS (max-width: 639px)
+   Desktop UI remains completely unchanged
+   =========================== */
+@media (max-width: 639px) {
+  /* Top-right navigation buttons on mobile */
+  .top-right-nav-buttons {
+    position: fixed !important;
+    top: 0.75rem !important;
+    right: 0.75rem !important;
+    left: auto !important;
+    bottom: auto !important;
+    flex-direction: column !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+    align-items: flex-end !important;
+  }
+  
+  /* Touch-friendly targets on mobile only */
+  .btn, button, a[role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation; /* Prevents double-tap zoom */
+  }
+
+  /* Mobile-optimized inputs - prevent iOS zoom */
+  .input, .textarea, input[type="text"], input[type="email"], input[type="password"], textarea, select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    min-height: 44px; /* Touch target size */
+  }
+
+  /* Mobile-optimized panels */
+  .panel {
+    padding: 1rem 1.25rem !important;
+    margin: 0.5rem;
+    width: calc(100% - 1rem);
+    max-width: 100%;
+  }
+
+  /* Mobile typography */
+  .header-xl {
+    font-size: 1.75rem;
+    line-height: 1.2;
+  }
+
+  /* Mobile spacing adjustments */
+  .space-y-5 > * + * {
+    margin-top: 1rem;
+  }
+
+  .mb-8 {
+    margin-bottom: 1.5rem;
+  }
+
+  .mt-8 {
+    margin-top: 1.5rem;
+  }
+
+  .mb-6 {
+    margin-bottom: 1rem;
+  }
+
+  .mt-6 {
+    margin-top: 1rem;
+  }
+
+  /* Mobile grid - single column */
+  .grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+
+  /* Mobile tables - horizontal scroll */
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    margin: 0 -0.5rem;
+    padding: 0 0.5rem;
+  }
+
+  table {
+    min-width: 600px;
+    font-size: 0.75rem;
+  }
+
+  table th,
+  table td {
+    padding: 0.5rem 0.5rem;
+    white-space: nowrap;
+  }
+
+  table th {
+    font-size: 0.7rem;
+  }
+
+  /* Mobile navigation - stack vertically */
+  .nav-buttons {
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .nav-buttons button {
+    width: 100%;
+  }
+
+  /* Mobile modals */
+  .modal-content {
+    max-width: 95vw;
+    margin: 0.5rem;
+    padding: 1rem;
+    max-height: 90vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Mobile forms */
+  .form-group {
+    margin-bottom: 1.25rem;
+  }
+
+  .form-label {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Mobile cards */
+  .restaurant-card, .group-card {
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .groups-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+
+  /* Mobile chat */
+  .chat-view {
+    height: auto;
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .messages-container {
+    max-height: 50vh !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0.5rem;
+  }
+
+  .message {
+    max-width: 85%;
+    font-size: 0.875rem;
+    padding: 0.625rem 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .message-input-container {
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: rgba(255, 255, 255, 0.95);
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .message-input {
+    width: 100%;
+    margin-bottom: 0;
+    font-size: 16px; /* Prevents zoom */
+  }
+
+  /* Mobile group actions */
+  .group-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .group-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Mobile search */
+  .search-form {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+
+  .search-form input {
+    width: 100%;
+  }
+
+  .search-form button {
+    width: 100%;
+  }
+
+  /* Mobile buttons - full width on mobile */
+  .btn-mobile-full,
+  form button[type="submit"],
+  form .btn-primary,
+  form .btn-secondary {
+    width: 100%;
+  }
+
+
+  /* Mobile flip cards */
+  .flip-card-container {
+    height: 320px;
+    margin-bottom: 1rem;
+  }
+
+  .card-content {
+    padding: 1rem;
+  }
+
+  .restaurant-name {
+    font-size: 1.125rem;
+  }
+
+  /* Mobile rating forms */
+  .rating-form {
+    padding: 1rem;
+  }
+
+  /* Mobile user management */
+  .user-management-container {
+    padding: 0.75rem;
+  }
+
+  /* Mobile chat system */
+  .chat-system {
+    padding: 1rem;
+  }
+
+  .chat-content {
+    padding: 1rem;
+  }
+
+  .chat-nav {
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .nav-btn {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    min-height: 44px;
+  }
+
+  /* Stack form buttons on mobile */
+  form .flex-row,
+  .flex-row.space-x-3 {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  form .flex-row button,
+  .flex-row.space-x-3 button {
+    width: 100%;
+    margin: 0;
+  }
+}
+
+/* Text truncation utility */
+.truncate-mobile {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Hide/show utilities - only apply on mobile */
+@media (max-width: 639px) {
+  .hide-mobile {
+    display: none !important;
+  }
+  
+  .show-mobile {
+    display: block;
+  }
+}
+
+@media (min-width: 640px) {
+  .hide-mobile {
+    display: block;
+  }
+  
+  .show-mobile {
+    display: none;
+  }
+}
+
+/* ===========================
+   DESKTOP & TABLET (640px+)
+   Explicitly restore original desktop styles
+   =========================== */
+@media (min-width: 640px) {
+  /* Restore original panel padding for desktop/tablet */
+  .panel {
+    padding: 2rem !important; /* p-8 = 2rem */
+    margin: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  
+  /* Restore original header-xl for desktop/tablet */
+  .header-xl {
+    font-size: clamp(2rem, 5vw, 3rem) !important;
+    line-height: 1.2 !important;
+    font-weight: 800 !important;
+    letter-spacing: -0.02em !important;
+  }
+  
+  /* Restore original spacing for desktop/tablet */
+  .mb-8 {
+    margin-bottom: 2rem !important;
+  }
+  
+  .mt-8 {
+    margin-top: 2rem !important;
+  }
+  
+  .mb-6 {
+    margin-bottom: 1.5rem !important;
+  }
+  
+  .mt-6 {
+    margin-top: 1.5rem !important;
+  }
+  
+  /* Restore original grid for desktop/tablet */
+  .grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 2rem !important;
+  }
+  
+  /* Restore original auth-page for desktop/tablet */
+  .auth-page {
+    padding: clamp(1rem, 3vw, 3rem) !important;
+    align-items: center !important;
+    padding-top: clamp(1rem, 3vw, 3rem) !important;
+  }
+  
+  /* Restore original dashboard-page for desktop/tablet */
+  .dashboard-page {
+    padding: clamp(1rem, 3vw, 3rem) !important;
+  }
+  
+  /* Top-right navigation buttons - ensure horizontal row on desktop */
+  .top-right-nav-buttons {
+    position: fixed !important;
+    top: 1rem !important;
+    right: 1rem !important;
+    left: auto !important;
+    bottom: auto !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    align-items: flex-start !important;
+  }
+  
+  /* Target button containers in top-right corner (fixed or absolute) */
+  div[class*="fixed"][class*="right"],
+  div[class*="absolute"][class*="right"] {
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+  }
+}
+
+/* Medium screens (768px+) - Restore md:p-12 */
+@media (min-width: 768px) {
+  .panel {
+    padding: 3rem !important; /* md:p-12 = 3rem */
+  }
+  
+  .groups-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Desktop - show mobile-hidden elements */
+@media (min-width: 640px) {
+  .hide-mobile {
+    display: block;
+  }
+  
+  .show-mobile {
+    display: none;
+  }
 }
 
 /* Additional utility classes for user management */
@@ -515,6 +939,19 @@ body::before{
   min-height: 100vh;
   display:flex; align-items:center; justify-content:center;
   padding: clamp(1rem, 3vw, 3rem);
+}
+
+/* Mobile adjustments for auth pages */
+@media (max-width: 639px) {
+  .auth-page {
+    padding: 1rem;
+    align-items: flex-start;
+    padding-top: 2rem;
+  }
+  
+  .dashboard-page {
+    padding: 0.5rem;
+  }
 }
 .auth-card, .dashboard-card { @apply panel; }
 .header-xl{ font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; letter-spacing:-.02em; }
@@ -750,8 +1187,8 @@ body::before{
   transform: translateZ(0);
 }
 
-/* Responsive adjustments */
-@media (max-width: 640px) {
+/* Responsive adjustments - Mobile First */
+@media (max-width: 639px) {
   .card-content {
     padding: 1rem;
   }
@@ -762,6 +1199,59 @@ body::before{
   
   .rating-form {
     padding: 1rem;
+  }
+  
+  .flip-card-container {
+    height: 320px;
+    margin-bottom: 1rem;
+  }
+  
+  .chat-system {
+    padding: 1rem;
+  }
+  
+  .chat-content {
+    padding: 1rem;
+  }
+  
+  .groups-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .message {
+    max-width: 85%;
+    font-size: 0.875rem;
+  }
+  
+  .chat-nav {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .nav-btn {
+    width: 100%;
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+  }
+  
+  .user-management-container {
+    padding: 1rem;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  table {
+    min-width: 600px;
+    font-size: 0.875rem;
+  }
+  
+  table th,
+  table td {
+    padding: 0.5rem 0.75rem;
   }
 }
 
@@ -1043,4 +1533,116 @@ body::before{
 
 .animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out;
+}
+
+/* ===========================
+   MOBILE-SPECIFIC ENHANCEMENTS
+   =========================== */
+
+/* Prevent text size adjustment on iOS */
+@media screen and (max-width: 639px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+  }
+  
+  /* Larger tap targets on mobile */
+  button,
+  .btn,
+  a[role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.75rem 1rem;
+  }
+  
+  /* Full-width buttons on mobile forms */
+  form button[type="submit"],
+  form .btn-primary,
+  form .btn-secondary {
+    width: 100%;
+  }
+  
+  /* Better modal on mobile */
+  .modal-content {
+    width: 95vw;
+    max-width: 95vw;
+    margin: 1rem auto;
+    padding: 1.25rem;
+    border-radius: 1rem;
+  }
+  
+  /* Improved navigation on mobile */
+  nav,
+  .nav-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  nav button,
+  .nav-buttons button {
+    width: 100%;
+    margin-bottom: 0.5rem;
+  }
+  
+  /* Better search bar on mobile */
+  .search-form input {
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+  
+  .search-form button {
+    width: 100%;
+  }
+}
+
+/* Touch device optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Larger touch targets */
+  button,
+  .btn,
+  a,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Remove hover effects on touch devices */
+  .btn:hover {
+    transform: none;
+  }
+  
+  /* Better focus states for touch */
+  *:focus {
+    outline: 3px solid #2563eb;
+    outline-offset: 2px;
+  }
+}
+
+/* Landscape mobile optimizations */
+@media screen and (max-width: 767px) and (orientation: landscape) {
+  .auth-page {
+    padding: 0.5rem;
+    align-items: center;
+  }
+  
+  .panel {
+    padding: 1rem 1.5rem;
+  }
+  
+  .header-xl {
+    font-size: 1.5rem;
+  }
+  
+  .chat-view {
+    height: 60vh;
+  }
+  
+  .messages-container {
+    max-height: 40vh !important;
+  }
 }

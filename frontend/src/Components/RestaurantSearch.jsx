@@ -110,46 +110,46 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-start px-6 py-10 bg-transparent">
+    <div className="relative min-h-screen flex flex-col items-center justify-start px-4 sm:px-6 py-6 sm:py-10 bg-transparent">
       
-      {/* 🔹 Top Right Buttons (fixed) */}
-      <div className="absolute top-6 right-6 flex gap-3 z-10">
+      {/* 🔹 Top Right Buttons (fixed) - Desktop: horizontal row, Mobile: stacked */}
+      <div className="top-right-nav-buttons fixed top-4 right-4 sm:top-6 sm:right-6 flex flex-col sm:flex-row flex-wrap sm:flex-nowrap gap-2 sm:gap-3 z-50">
         <button
           onClick={onOpenChat}
-          className="btn btn-ghost shadow-lg"
+          className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
         >
-          💬 Chat
+          <span className="hidden sm:inline">💬 </span>Chat
         </button>
         {typeof onOpenProfile === 'function' && (
           <button
             onClick={onOpenProfile}
-            className="btn btn-ghost shadow-lg"
+            className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
           >
-            👤 Profile
+            <span className="hidden sm:inline">👤 </span>Profile
           </button>
         )}
         {isAdmin && (
           <button
             onClick={onManageUsers}
-            className="btn btn-ghost shadow-lg"
+            className="btn btn-ghost shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
           >
             Manage Users
           </button>
         )}
         <button
           onClick={onSignOut}
-          className="btn btn-secondary shadow-lg"
+          className="btn btn-secondary shadow-lg text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 whitespace-nowrap"
         >
           Sign Out
         </button>
       </div>
 
       {/* 🔹 Centered Heading */}
-      <div className="flex flex-col items-center text-center max-w-2xl fade-up mt-10">
-        <h1 className="header-xl tracking-tight mb-3">
+      <div className="flex flex-col items-center text-center max-w-2xl fade-up mt-16 sm:mt-20 px-4">
+        <h1 className="header-xl tracking-tight mb-3 text-2xl sm:text-3xl md:text-4xl">
           Discover Amazing Restaurants
         </h1>
-        <p className="text-slate-600 text-lg mb-10 leading-relaxed">
+        <p className="text-slate-600 text-base sm:text-lg mb-6 sm:mb-10 leading-relaxed">
           Search for restaurants in your favorite city — explore, rate, and enjoy
           your culinary journey 🍽️
         </p>
@@ -241,12 +241,12 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
 
       {/* 🔹 Results Grid */}
       {searchResults.length > 0 && (
-        <div className="w-full max-w-6xl mt-16 fade-up">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 justify-center">
+        <div className="w-full max-w-6xl mt-8 sm:mt-16 fade-up px-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 justify-center">
             {searchResults.map((restaurant, idx) => (
               <div
                 key={restaurant.place_id || idx}
-                className="mx-auto max-w-[350px] w-full transform hover:scale-[1.02] transition-transform duration-300"
+                className="mx-auto max-w-full sm:max-w-[350px] w-full transform hover:scale-[1.02] transition-transform duration-300"
               >
                 <ErrorBoundary>
                   <RestaurantFlipCard

@@ -188,7 +188,25 @@ def after_request(response):
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-XSS-Protection'] = '1; mode=block'
     response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
-    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://maps.googleapis.com;"
+    # Content Security Policy - Secure configuration for React/Vite
+    # 'strict-dynamic' allows scripts loaded by trusted scripts (React/Vite bundles)
+    # 'unsafe-eval' needed for Vite development mode (HMR) - can be removed in production
+    # 'unsafe-inline' removed from script-src for security
+    # 'unsafe-inline' kept for style-src (needed for TailwindCSS and dynamic styles)
+    csp_policy = (
+        "default-src 'self'; "
+        "script-src 'self' 'strict-dynamic' 'unsafe-eval'; "  # 'unsafe-eval' for Vite dev, 'strict-dynamic' for React
+        "style-src 'self' 'unsafe-inline' https:; "  # Allow inline styles (TailwindCSS)
+        "img-src 'self' data: https: blob:; "  # Allow images from any HTTPS source
+        "font-src 'self' data: https:; "  # Allow fonts
+        "connect-src 'self' https://maps.googleapis.com https://flavour-quest-e7ho.onrender.com http://localhost:5002 ws://localhost:5173; "  # API endpoints + Vite HMR
+        "frame-ancestors 'none'; "  # Prevent clickjacking
+        "base-uri 'self'; "  # Restrict base tag
+        "form-action 'self'; "  # Restrict form submissions
+        "object-src 'none'; "  # Block plugins
+        "upgrade-insecure-requests"  # Upgrade HTTP to HTTPS
+    )
+    response.headers['Content-Security-Policy'] = csp_policy
     response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
     return response
 
