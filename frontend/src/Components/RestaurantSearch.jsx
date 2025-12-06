@@ -91,9 +91,16 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
           const updatedHistory = searchHistory.get(userInfo.UserId);
           setRecentSearches(updatedHistory);
         }
+      } else {
+        // No places found in response
+        const errorMsg = res.data?.error || "No restaurants found. Please try a different location.";
+        setError(errorMsg);
       }
     } catch (err) {
-      setError("Unable to search restaurants at this time. Please try again later.");
+      console.error("Search error:", err);
+      // Show more specific error message if available
+      const errorMessage = err.response?.data?.error || err.message || "Unable to search restaurants at this time. Please try again later.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

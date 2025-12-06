@@ -193,6 +193,40 @@ def sanitize_input(text, max_length=1000):
     
     return text.strip()
 
+def sanitize_search_query(text, max_length=200):
+    """
+    Sanitize search query for Google Places API
+    
+    This is a lighter sanitization that doesn't HTML escape, since
+    the query is sent to an external API, not stored in HTML.
+    
+    @param {str} text - Search query to sanitize
+    @param {int} max_length - Maximum allowed length (default: 200)
+    @returns {str} Sanitized search query
+    """
+    if not text:
+        return ""
+    
+    # Convert to string and limit length
+    text = str(text)[:max_length]
+    
+    # Remove potentially dangerous characters but keep spaces and common punctuation
+    # Don't HTML escape - we're sending to an API, not displaying in HTML
+    text = re.sub(r'[<>"\']', '', text)
+    
+    # Remove SQL injection patterns (basic protection)
+    dangerous_patterns = [
+        r'(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION|SCRIPT)\b)',
+        r'(;\s*(DROP|DELETE|INSERT|UPDATE))',
+        r'(/\*.*?\*/)',
+        r'(--.*)',
+    ]
+    
+    for pattern in dangerous_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    return text.strip()
+
 def validate_email(email):
     """
     Validate email address format
@@ -942,6 +976,7 @@ def me():
         else:
             return jsonify({"error": "User account could not be found."}), 404
     except Exception as e:
+        app.logger.error(f"Get user info error: {e}")
         return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
 
 # Update user profile (username and/or password)
@@ -1315,8 +1350,14 @@ def search_google_places():
         print(f"Enhanced query for London: {query}")
     
     # Sanitize search inputs AFTER enhancing the query
-    query = sanitize_input(query, 200)
-    location = sanitize_input(location, 200)
+    # Use sanitize_search_query instead of sanitize_input to avoid HTML escaping
+    # which would break the Google Places API query
+    query = sanitize_search_query(query, 200)
+    location = sanitize_search_query(location, 200)
+    
+    print(f"=== AFTER SANITIZATION ===")
+    print(f"Query: {query}")
+    print(f"Location: {location}")
     
     # First, check if we have restaurants in our database for this location
     conn = get_db_connection()
@@ -1524,13 +1565,13 @@ def search_google_places():
                     photo_url = get_photo_url(photos[0].get("photo_reference"))
 
                 formatted_place = {
-                    "place_id": place.get("place_id"),
-                    "name": place.get("name"),
-                    "formatted_address": place.get("formatted_address"),
-                    "rating": place.get("rating"),
-                    "price_level": place.get("price_level"),
-                    "types": place.get("types", []),
-                    "geometry": place.get("geometry"),
+                "place_id": place.get("place_id"),
+                "name": place.get("name"),
+                "formatted_address": place.get("formatted_address"),
+                "rating": place.get("rating"),
+                "price_level": place.get("price_level"),
+                "types": place.get("types", []),
+                "geometry": place.get("geometry"),
                     "photos": photos,
                     "photo_url": photo_url,
                     "user_review": None,
