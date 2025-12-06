@@ -1285,12 +1285,38 @@ def search_google_places():
     location = data.get("location", "").strip()
     radius = data.get("radius", 5000)  # Default 5km radius
     
-    # Sanitize search inputs
-    query = sanitize_input(query, 200)
-    location = sanitize_input(location, 200)
-    
     if not query:
         return jsonify({"error": "Search query is required. Please enter a location to search."}), 400
+    
+    # Improve query for ambiguous city names like "toronto" and "london"
+    # Add country/region hints to help Google Places API disambiguate
+    # Do this BEFORE sanitization to preserve the enhanced query
+    location_lower = location.lower() if location else ""
+    query_lower = query.lower()
+    
+    # If the query or location is just "toronto", make it more specific
+    if location_lower == "toronto" or (query_lower and "toronto" in query_lower and "ontario" not in query_lower and "canada" not in query_lower):
+        # Default to Toronto, Ontario, Canada (most common)
+        if "restaurants in" in query_lower:
+            query = query.replace("toronto", "toronto ontario canada")
+        else:
+            query = f"restaurants in toronto ontario canada"
+        location = "toronto ontario canada"
+        print(f"Enhanced query for Toronto: {query}")
+    
+    # If the query or location is just "london", make it more specific
+    elif location_lower == "london" or (query_lower and "london" in query_lower and "ontario" not in query_lower and "uk" not in query_lower and "england" not in query_lower and "canada" not in query_lower):
+        # Default to London, UK (most common)
+        if "restaurants in" in query_lower:
+            query = query.replace("london", "london uk")
+        else:
+            query = f"restaurants in london uk"
+        location = "london uk"
+        print(f"Enhanced query for London: {query}")
+    
+    # Sanitize search inputs AFTER enhancing the query
+    query = sanitize_input(query, 200)
+    location = sanitize_input(location, 200)
     
     # First, check if we have restaurants in our database for this location
     conn = get_db_connection()
@@ -1420,6 +1446,8 @@ def search_google_places():
     
     try:
         # Search for places using Google Places API
+        # For ambiguous city names like "toronto" or "london", use the query directly
+        # The query already includes "restaurants in {city}" which helps disambiguate
         search_url = f"{GOOGLE_PLACES_API_URL}/textsearch/json"
         params = {
             "query": query,
@@ -1427,11 +1455,18 @@ def search_google_places():
             "type": "restaurant"
         }
         
-        if location:
-            params["location"] = location
-            params["radius"] = radius
+        # Note: Google Places Text Search API doesn't use "location" as a string parameter
+        # It uses "location" with lat/lng coordinates (e.g., "location": "43.6532,-79.3832").
+        # For city names, we rely on the query string which already includes "restaurants in {city}".
+        # We do NOT add location/radius parameters for text search - they're only for nearby search.
         
-        response = requests.get(search_url, params=params)
+        print(f"=== GOOGLE PLACES API REQUEST ===")
+        print(f"Query: {query}")
+        print(f"Location (for reference): {location}")
+        print(f"URL: {search_url}")
+        print(f"Params: {params}")
+        
+        response = requests.get(search_url, params=params, timeout=10)
         response.raise_for_status()
         
         # Track API usage
@@ -1443,8 +1478,28 @@ def search_google_places():
         
         places_data = response.json()
         
-        if places_data.get("status") != "OK":
-            return jsonify({"error": f"Google Places API error: {places_data.get('status')}"}), 400
+        print(f"=== GOOGLE PLACES API RESPONSE ===")
+        print(f"Status: {places_data.get('status')}")
+        print(f"Results count: {len(places_data.get('results', []))}")
+        
+        # Handle different API response statuses
+        api_status = places_data.get("status")
+        if api_status == "ZERO_RESULTS":
+            return jsonify({"error": f"No restaurants found for '{location or query}'. Please try a different location or be more specific (e.g., 'Toronto, ON' or 'London, UK')."}), 404
+        elif api_status == "INVALID_REQUEST":
+            error_message = places_data.get("error_message", "Invalid request to Google Places API")
+            print(f"Google Places API error: {error_message}")
+            return jsonify({"error": f"Invalid search request. Please try a different location."}), 400
+        elif api_status == "OVER_QUERY_LIMIT":
+            return jsonify({"error": "Google Places API quota exceeded. Please try again later."}), 429
+        elif api_status == "REQUEST_DENIED":
+            error_message = places_data.get("error_message", "Request denied by Google Places API")
+            print(f"Google Places API denied: {error_message}")
+            return jsonify({"error": "Search service temporarily unavailable. Please try again later."}), 503
+        elif api_status != "OK":
+            error_message = places_data.get("error_message", f"Unknown error: {api_status}")
+            print(f"Google Places API error status: {api_status}, message: {error_message}")
+            return jsonify({"error": f"Unable to search restaurants. Please try again later or try a more specific location."}), 400
         
         places = places_data.get("results", [])
         
@@ -1653,9 +1708,18 @@ def search_google_places():
         })
         
     except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Unable to retrieve restaurant information at this time. Please try again later."}), 500
+        print(f"=== REQUEST EXCEPTION ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Traceback: {repr(e)}")
+        return jsonify({"error": f"Unable to connect to search service. Please check your internet connection and try again. Error: {str(e)}"}), 500
     except Exception as e:
-        return jsonify({"error": "An internal server error occurred. Please try again later."}), 500
+        print(f"=== GENERAL EXCEPTION ===")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({"error": f"An error occurred while searching. Please try again. Error: {str(e)}"}), 500
 
 # --- Add Google Place to Database ---
 @app.route("/add-google-place", methods=["POST"])
