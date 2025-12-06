@@ -812,7 +812,8 @@ def create_restaurant():
     except Exception as e:
         if 'conn' in locals():
             conn.rollback()
-            cur.close()
+            if 'cur' in locals():
+                cur.close()
             conn.close()
         return jsonify({"error": "Unable to process your request. Please verify your input and try again."}), 400
 
@@ -1305,14 +1306,10 @@ def test_save_restaurant():
 def search_google_places():
     # Check if user is authenticated (optional)
     user_data = None
-    print(f"=== SEARCH REQUEST DEBUG ===")
-    print(f"Authorization header: {request.headers.get('Authorization', 'None')}")
     try:
         user_data, _ = _require_auth(request)
-        print(f"User authenticated: {user_data['username'] if user_data else 'None'}")
     except Exception as e:
         # User not authenticated, that's fine for search
-        print(f"User not authenticated: {str(e)}")
         pass
     
     data = request.json
@@ -1326,28 +1323,24 @@ def search_google_places():
     # Improve query for ambiguous city names like "toronto" and "london"
     # Add country/region hints to help Google Places API disambiguate
     # Do this BEFORE sanitization to preserve the enhanced query
-    location_lower = location.lower() if location else ""
-    query_lower = query.lower()
+    location_lower = location.lower().strip() if location else ""
+    query_lower = query.lower().strip() if query else ""
     
     # If the query or location is just "toronto", make it more specific
     if location_lower == "toronto" or (query_lower and "toronto" in query_lower and "ontario" not in query_lower and "canada" not in query_lower):
-        # Default to Toronto, Ontario, Canada (most common)
-        if "restaurants in" in query_lower:
-            query = query.replace("toronto", "toronto ontario canada")
-        else:
-            query = f"restaurants in toronto ontario canada"
-        location = "toronto ontario canada"
-        print(f"Enhanced query for Toronto: {query}")
+        # IMPORTANT: If query already has "food" keyword, preserve it (don't override)
+        # Google Places API returns ZERO_RESULTS for "restaurants" but works with "food"
+        if "food" not in query_lower:
+            # Query doesn't have "food", add it
+            query = "food Toronto"
+        location = "Toronto, Ontario, Canada"
     
     # If the query or location is just "london", make it more specific
     elif location_lower == "london" or (query_lower and "london" in query_lower and "ontario" not in query_lower and "uk" not in query_lower and "england" not in query_lower and "canada" not in query_lower):
-        # Default to London, UK (most common)
-        if "restaurants in" in query_lower:
-            query = query.replace("london", "london uk")
-        else:
-            query = f"restaurants in london uk"
-        location = "london uk"
-        print(f"Enhanced query for London: {query}")
+        # IMPORTANT: If query already has "food" keyword, preserve it
+        if "food" not in query_lower:
+            query = "food London"
+        location = "London, UK"
     
     # Sanitize search inputs AFTER enhancing the query
     # Use sanitize_search_query instead of sanitize_input to avoid HTML escaping
@@ -1355,9 +1348,6 @@ def search_google_places():
     query = sanitize_search_query(query, 200)
     location = sanitize_search_query(location, 200)
     
-    print(f"=== AFTER SANITIZATION ===")
-    print(f"Query: {query}")
-    print(f"Location: {location}")
     
     # First, check if we have restaurants in our database for this location
     conn = get_db_connection()
@@ -1365,8 +1355,6 @@ def search_google_places():
     
     try:
         # Search database for restaurants in this location
-        print(f"=== DATABASE SEARCH DEBUG ===")
-        print(f"Searching for: location='{location}', query='{query}'")
         cur.execute("""
             SELECT r.id, r.name, r.cuisine_type, r.location, r.google_api_links, r.google_rating, r.google_place_id, r.created_at, r.google_types, r.google_price_level, r.google_photo_reference,
                    COALESCE(AVG(rr.rating), 0) as avg_rating,
@@ -1381,7 +1369,6 @@ def search_google_places():
         """, (f"%{location}%", f"%{query}%"))
         
         db_restaurants = cur.fetchall()
-        print(f"Found {len(db_restaurants)} restaurants in database")
         
         if db_restaurants:
             # We have restaurants in database, format and return them
@@ -1396,7 +1383,6 @@ def search_google_places():
                 user_review = None
                 user_rating = None
                 if user_data:
-                    print(f"Fetching user review for restaurant {restaurant[0]} and user {user_data['id']}")
                     cur.execute("""
                         SELECT rating, review_text 
                         FROM restaurant_ratings 
@@ -1406,11 +1392,6 @@ def search_google_places():
                     if user_review_data:
                         user_rating = user_review_data[0]
                         user_review = user_review_data[1]
-                        print(f"Found user review: rating={user_rating}, review={user_review}")
-                    else:
-                        print(f"No user review found for restaurant {restaurant[0]}")
-                else:
-                    print("No user_data available for fetching reviews")
                 
                 # Generate photo URL if we have photo reference
                 photo_url = None
@@ -1490,22 +1471,19 @@ def search_google_places():
         # For ambiguous city names like "toronto" or "london", use the query directly
         # The query already includes "restaurants in {city}" which helps disambiguate
         search_url = f"{GOOGLE_PLACES_API_URL}/textsearch/json"
+        
+        # Try without type restriction - it might be too limiting and causing ZERO_RESULTS
+        # The query already contains "restaurants" so we should get restaurant results
         params = {
             "query": query,
-            "key": GOOGLE_MAPS_API_KEY,
-            "type": "restaurant"
+            "key": GOOGLE_MAPS_API_KEY
+            # Removed "type": "restaurant" - let the query text handle the filtering
         }
         
         # Note: Google Places Text Search API doesn't use "location" as a string parameter
         # It uses "location" with lat/lng coordinates (e.g., "location": "43.6532,-79.3832").
         # For city names, we rely on the query string which already includes "restaurants in {city}".
         # We do NOT add location/radius parameters for text search - they're only for nearby search.
-        
-        print(f"=== GOOGLE PLACES API REQUEST ===")
-        print(f"Query: {query}")
-        print(f"Location (for reference): {location}")
-        print(f"URL: {search_url}")
-        print(f"Params: {params}")
         
         response = requests.get(search_url, params=params, timeout=10)
         response.raise_for_status()
@@ -1519,14 +1497,52 @@ def search_google_places():
         
         places_data = response.json()
         
-        print(f"=== GOOGLE PLACES API RESPONSE ===")
-        print(f"Status: {places_data.get('status')}")
-        print(f"Results count: {len(places_data.get('results', []))}")
-        
         # Handle different API response statuses
         api_status = places_data.get("status")
         if api_status == "ZERO_RESULTS":
-            return jsonify({"error": f"No restaurants found for '{location or query}'. Please try a different location or be more specific (e.g., 'Toronto, ON' or 'London, UK')."}), 404
+            # Before returning error, try alternative query formats
+            places = []  # Initialize places list
+            
+            # Try alternative 1: "restaurants near [city]"
+            alt_query1 = query.replace("restaurants in ", "").replace("restaurants ", "").strip()
+            if alt_query1 and alt_query1 != query:
+                print(f"Trying alternative 1: 'restaurants near {alt_query1}'")
+                alt_params1 = {
+                    "query": f"restaurants near {alt_query1}",
+                    "key": GOOGLE_MAPS_API_KEY
+                }
+                try:
+                    alt_response1 = requests.get(search_url, params=alt_params1, timeout=10)
+                    alt_response1.raise_for_status()
+                    alt_data1 = alt_response1.json()
+                    if alt_data1.get("status") == "OK" and alt_data1.get("results"):
+                        places = alt_data1.get("results", [])
+                        places_data = alt_data1  # Update places_data for processing
+                except Exception as e:
+                    pass
+            
+            # Try alternative 2: Just the city name
+            if not places:
+                alt_params2 = {
+                    "query": alt_query1,
+                    "key": GOOGLE_MAPS_API_KEY
+                }
+                try:
+                    alt_response2 = requests.get(search_url, params=alt_params2, timeout=10)
+                    alt_response2.raise_for_status()
+                    alt_data2 = alt_response2.json()
+                    if alt_data2.get("status") == "OK" and alt_data2.get("results"):
+                        # Filter results to only restaurants
+                        all_results = alt_data2.get("results", [])
+                        places = [r for r in all_results if "restaurant" in [t.lower() for t in r.get("types", [])]]
+                        if places:
+                            places_data = {"status": "OK", "results": places}
+                except Exception as e:
+                    pass
+            
+            if not places:
+                error_msg = f"No restaurants found for '{location or query}'. Please try a different location or be more specific (e.g., 'Toronto, ON' or 'London, UK')."
+                return jsonify({"error": error_msg}), 404
         elif api_status == "INVALID_REQUEST":
             error_message = places_data.get("error_message", "Invalid request to Google Places API")
             print(f"Google Places API error: {error_message}")
@@ -1544,9 +1560,45 @@ def search_google_places():
         
         places = places_data.get("results", [])
         
-        # If no places found, return error
+        # Filter results to only include restaurants
+        # Google Places API returns ZERO_RESULTS for "restaurants" queries, but works with "food"
+        # So we use "food" and filter to restaurants
+        if places:
+            restaurant_types = ["restaurant", "food", "meal_takeaway", "meal_delivery", "cafe", "bakery"]
+            filtered_places = []
+            for place in places:
+                place_types = [t.lower() for t in place.get("types", [])]
+                # Include if it has restaurant-related types
+                if any(rt in place_types for rt in restaurant_types):
+                    filtered_places.append(place)
+            places = filtered_places
+        
+        # If no places found, try a fallback query without "restaurants in" prefix
+        if not places and "restaurants" in query.lower():
+            fallback_query = query.replace("restaurants in ", "").replace("restaurants ", "").strip()
+            if fallback_query:
+                fallback_params = {
+                    "query": f"restaurants {fallback_query}",
+                    "key": GOOGLE_MAPS_API_KEY
+                    # Removed type restriction for fallback too
+                }
+                try:
+                    fallback_response = requests.get(search_url, params=fallback_params, timeout=10)
+                    fallback_response.raise_for_status()
+                    fallback_data = fallback_response.json()
+                    if fallback_data.get("status") == "OK" and fallback_data.get("results"):
+                        places = fallback_data.get("results", [])
+                except Exception as e:
+                    pass
+        
+        # If still no places found, return error
         if not places:
-            return jsonify({"error": f"No restaurants found for '{query}'. Please try searching for a different location."}), 404
+            error_msg = f"No restaurants found for '{location or query}'. Please try a different location or be more specific (e.g., 'Toronto, ON' or 'London, UK')."
+            print(f"ERROR: No places found after all attempts")
+            print(f"Query used: {query}")
+            print(f"Location used: {location}")
+            print(f"API Status: {api_status}")
+            return jsonify({"error": error_msg}), 404
         
         # Format the results and automatically save to database
         formatted_places = []
@@ -1907,7 +1959,8 @@ def add_google_place():
     except Exception as e:
         if 'conn' in locals():
             conn.rollback()
-            cur.close()
+            if 'cur' in locals():
+                cur.close()
             conn.close()
         return jsonify({"error": "Unable to process your request. Please verify your input and try again."}), 400
 

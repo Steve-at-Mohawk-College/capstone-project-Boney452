@@ -79,7 +79,7 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.post(
         `${API_BASE_URL}/google-search`,
-        { query: `restaurants in ${sanitizedQuery}`, location: sanitizedQuery },
+        { query: `food in ${sanitizedQuery}`, location: sanitizedQuery },
         { headers }
       );
       if (res.data.places) {
@@ -97,10 +97,15 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
         setError(errorMsg);
       }
     } catch (err) {
-      console.error("Search error:", err);
-      // Show more specific error message if available
-      const errorMessage = err.response?.data?.error || err.message || "Unable to search restaurants at this time. Please try again later.";
-      setError(errorMessage);
+      // Handle 404 specifically
+      if (err.response?.status === 404) {
+        const errorMsg = err.response?.data?.error || "No restaurants found for this location. Please try a different city or be more specific (e.g., 'Toronto, ON' or 'London, UK').";
+        setError(errorMsg);
+      } else {
+        // Show more specific error message if available
+        const errorMessage = err.response?.data?.error || "Unable to search restaurants at this time. Please try again later.";
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -122,7 +127,7 @@ function RestaurantSearch({ userInfo, onSignOut, onManageUsers, onOpenChat, onOp
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const res = await axios.post(
         `${API_BASE_URL}/google-search`,
-        { query: `restaurants in ${sanitizedQuery}`, location: sanitizedQuery },
+        { query: `food in ${sanitizedQuery}`, location: sanitizedQuery },
         { headers }
       );
       if (res.data.places) {
